@@ -1,0 +1,39 @@
+.table-view {
+    -fx-background-color: transparent;
+}
+
+.table-row-cell {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #f0f0f0;
+    -fx-border-width: 0 0 1 0;
+}
+
+.table-row-cell:hover {
+    -fx-background-color: #f9f9f9;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: #e3f2fd;
+}
+
+.table-column {
+    -fx-alignment: CENTER-LEFT;
+}
+
+/* Stile per le celle della tabella */
+.table-cell {
+    -fx-padding: 10px;
+    -fx-border-color: transparent;
+}
+
+/* Stile per l'intestazione della tabella */
+.column-header {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 0 0 1 0;
+}
+
+.column-header .label {
+    -fx-text-fill: #64748b;
+    -fx-font-weight: bold;
+}

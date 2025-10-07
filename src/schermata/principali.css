@@ -1,0 +1,771 @@
+/* ===== STILI GLOBALI ===== */
+.root {
+    -fx-font-family: "Segoe UI", "Roboto", "Arial", sans-serif;
+    -fx-font-size: 14px;
+    -fx-background-color: #f8fafc;
+}
+
+/* ===== LAYOUT PRINCIPALE ===== */
+.main-layout {
+    -fx-background-color: #f8fafc;
+}
+
+.content-area {
+    -fx-background-color: transparent;
+    -fx-spacing: 20px;
+}
+
+.main-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+
+.main-scroll .viewport {
+    -fx-background-color: transparent;
+}
+
+.main-scroll .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8px;
+}
+
+.main-scroll .scroll-bar:vertical .track {
+    -fx-background-color: #e2e8f0;
+    -fx-background-radius: 4px;
+}
+
+.main-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: #cbd5e1;
+    -fx-background-radius: 4px;
+}
+
+.main-scroll .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #94a3b8;
+}
+
+/* ===== TOP BAR ===== */
+.top-bar {
+    -fx-background-color: #1e293b;
+    -fx-padding: 10px 24px; /* Ridotto padding verticale */
+    -fx-spacing: 20px;
+    -fx-alignment: center-left;
+    -fx-min-height: 60px; /* Altezza ridotta */
+}
+
+.logo-section {
+    -fx-spacing: 12px;
+    -fx-alignment: center-left;
+}
+
+.logo-container {
+    -fx-background-color: #3b82f6;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px;
+}
+
+.app-title {
+    -fx-text-fill: white;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.search-container {
+    -fx-spacing: 0;
+    -fx-alignment: center;
+    -fx-max-width: 800px; /* Larghezza aumentata */
+    -fx-pref-width: 800px; /* Larghezza aumentata */
+}
+
+.search-field {
+    -fx-background-color: #475569;
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: #94a3b8;
+    -fx-background-radius: 30px 0 0 30px;
+    -fx-border-color: transparent;
+    -fx-padding: 10px 24px; /* Padding verticale ridotto */
+    -fx-font-size: 16px;
+    -fx-pref-width: 720px; /* Larghezza aumentata */
+    -fx-pref-height: 44px; /* Altezza ridotta */
+}
+
+.search-field:focused {
+    -fx-background-color: #64748b;
+    -fx-border-color: #3b82f6;
+    -fx-border-width: 2px;
+}
+
+.search-button {
+    -fx-background-color: #3b82f6;
+    -fx-text-fill: white;
+    -fx-background-radius: 0 30px 30px 0;
+    -fx-border-color: transparent;
+    -fx-padding: 10px 24px; /* Padding verticale ridotto */
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-pref-height: 44px; /* Altezza ridotta */
+}
+
+.search-button:hover {
+    -fx-background-color: #2563eb;
+}
+
+
+.action-buttons {
+    -fx-spacing: 8px;
+    -fx-alignment: center;
+}
+
+.action-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: white;
+    -fx-background-radius: 8px;
+    -fx-padding: 10px; /* Padding aumentato per icone */
+    -fx-cursor: hand;
+    -fx-min-width: 44px; /* Dimensioni aumentate */
+    -fx-min-height: 44px; /* Dimensioni aumentate */
+}
+
+.action-button > .ikonli-font-icon {
+    -fx-icon-size: 24px; /* Dimensione icona aumentata */
+    -fx-icon-color: white;
+}
+
+.action-button:hover {
+    -fx-background-color: #475569;
+}
+
+.account-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: white;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px 16px;
+    -fx-cursor: hand;
+    -fx-spacing: 8px;
+    -fx-alignment: center;
+}
+
+.account-button > .ikonli-font-icon {
+    -fx-icon-size: 20px; /* Dimensione icona aumentata */
+    -fx-icon-color: white;
+}
+
+.account-button:hover {
+    -fx-background-color: #475569;
+}
+
+/* ===== SIDEBAR / CATEGORY MENU ===== */
+.category-menu {
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 0 1px 0 0;
+    -fx-padding: 24px;
+    -fx-spacing: 16px;
+    -fx-pref-width: 280px;
+    -fx-min-width: 280px;
+}
+
+.category-title {
+    -fx-text-fill: #1e293b;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.category-list {
+    -fx-spacing: 4px;
+}
+
+.category-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748b;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px 16px;
+    -fx-cursor: hand;
+    -fx-alignment: center-left;
+    -fx-spacing: 12px;
+    -fx-font-weight: 500;
+    -fx-min-width: 240px;
+    -fx-max-width: 240px;
+}
+
+.category-button > .ikonli-font-icon {
+    -fx-icon-size: 20px; /* Dimensione icona aumentata */
+}
+
+.category-button:hover {
+    -fx-background-color: #e2e8f0;
+    -fx-text-fill: #1e293b;
+}
+
+.category-button.selected {
+    -fx-background-color: #dbeafe;
+    -fx-text-fill: #1d4ed8;
+    -fx-border-color: #3b82f6;
+    -fx-border-width: 0 0 0 4px;
+}
+
+.quick-actions-title {
+    -fx-text-fill: #64748b;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-padding: 16px 0 8px 0;
+}
+
+.quick-action-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748b;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px 16px;
+    -fx-cursor: hand;
+    -fx-alignment: center-left;
+    -fx-spacing: 12px;
+    -fx-font-size: 13px;
+    -fx-min-width: 240px;
+    -fx-max-width: 240px;
+}
+
+.quick-action-button > .ikonli-font-icon {
+    -fx-icon-size: 18px; /* Dimensione icona aumentata */
+}
+
+.quick-action-button:hover {
+    -fx-background-color: #e2e8f0;
+    -fx-text-fill: #1e293b;
+}
+
+/* ===== HEADER SECTION ===== */
+.header-section {
+    -fx-spacing: 8px;
+    -fx-padding: 0 0 20px 0;
+}
+
+.main-title {
+    -fx-fill: #1e293b;
+    -fx-font-size: 32px;
+    -fx-font-weight: bold;
+}
+
+.main-subtitle {
+    -fx-fill: #64748b;
+    -fx-font-size: 16px;
+}
+
+/* ===== FILTER BAR ===== */
+.filter-bar {
+    -fx-background-color: white;
+    -fx-background-radius: 12px;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 12px;
+    -fx-border-width: 1px;
+    -fx-padding: 20px;
+    -fx-spacing: 16px;
+    -fx-alignment: center-left;
+}
+
+.filter-section {
+    -fx-spacing: 12px;
+    -fx-alignment: center-left;
+}
+
+.filter-label {
+    -fx-text-fill: #374151;
+    -fx-font-weight: 500;
+    -fx-font-size: 14px;
+}
+
+.filter-combo {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #d1d5db;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 8px 12px;
+    -fx-font-size: 14px;
+    -fx-text-fill: #374151;
+    -fx-pref-width: 150px;
+}
+
+.filter-combo:focused {
+    -fx-border-color: #3b82f6;
+    -fx-border-width: 2px;
+}
+
+.sort-section {
+    -fx-spacing: 12px;
+    -fx-alignment: center;
+}
+
+.total-count {
+    -fx-text-fill: #64748b;
+    -fx-font-size: 14px;
+}
+
+/* ===== PRODUCT GRID ===== */
+.product-grid {
+    -fx-hgap: 24px;
+    -fx-vgap: 24px;
+    -fx-padding: 0;
+}
+
+.product-card {
+    -fx-background-color: white;
+    -fx-background-radius: 16px;
+    -fx-border-color: #192a54;  /* Changed to blue */
+    -fx-border-radius: 16px;
+    -fx-border-width: 1px;      /* Slightly thicker border for emphasis */
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 4, 0, 0, 2);
+    -fx-padding: 0;
+    -fx-spacing: 0;
+    -fx-pref-width: 320px;
+    -fx-max-width: 320px;
+}
+
+.product-card:hover {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 8, 0, 0, 4);
+    -fx-translate-y: -2px;
+}
+
+.product-image-container {
+    -fx-background-radius: 16px 16px 0 0;
+    -fx-pref-height: 200px;
+    -fx-max-height: 200px;
+}
+
+.product-image {
+    -fx-background-radius: 16px 16px 0 0;
+}
+
+.product-badge {
+    -fx-background-radius: 20px;
+    -fx-padding: 6px 12px;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.badge-vendita {
+    -fx-background-color: #dbeafe;
+    -fx-text-fill: #1e40af;
+}
+
+.badge-scambio {
+    -fx-background-color: #dcfce7;
+    -fx-text-fill: #166534;
+}
+
+.badge-regalo {
+    -fx-background-color: #fae8ff;
+    -fx-text-fill: #86198f;
+}
+
+.product-content {
+    -fx-padding: 20px;
+    -fx-spacing: 12px;
+}
+
+.product-header {
+    -fx-spacing: 12px;
+    -fx-alignment: top-left;
+}
+
+.product-title {
+    -fx-text-fill: #1e293b;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-wrap-text: true;
+}
+
+.product-price {
+    -fx-text-fill: #3b82f6;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.product-description {
+    -fx-text-fill: #64748b;
+    -fx-font-size: 14px;
+    -fx-wrap-text: true;
+}
+
+.product-meta {
+    -fx-spacing: 8px;
+}
+
+.meta-row {
+    -fx-spacing: 8px;
+    -fx-alignment: center-left;
+}
+
+.meta-text {
+    -fx-text-fill: #64748b;
+    -fx-font-size: 12px;
+}
+
+.product-actions {
+    -fx-spacing: 12px;
+    -fx-alignment: center;
+}
+
+.details-button {
+    -fx-background-color: #f1f5f9;
+    -fx-text-fill: #1e293b;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px 20px;
+    -fx-font-weight: 500;
+    -fx-cursor: hand;
+    -fx-pref-width: 120px;
+}
+
+.details-button:hover {
+    -fx-background-color: #e2e8f0;
+}
+
+.offer-button {
+    -fx-background-color: #3b82f6;
+    -fx-text-fill: white;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px 20px;
+    -fx-font-weight: 500;
+    -fx-cursor: hand;
+    -fx-pref-width: 120px;
+    -fx-spacing: 6px;
+    -fx-alignment: center;
+}
+
+.offer-button:hover {
+    -fx-background-color: #2563eb;
+}
+
+.favorite-button {
+    -fx-background-color: white;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 50%;
+    -fx-background-radius: 50%;
+    -fx-border-width: 1px;
+    -fx-padding: 8px;
+    -fx-cursor: hand;
+    -fx-min-width: 40px;
+    -fx-min-height: 40px;
+    -fx-max-width: 40px;
+    -fx-max-height: 40px;
+}
+
+.favorite-button:hover {
+    -fx-background-color: #fef2f2;
+    -fx-border-color: #fca5a5;
+}
+
+/* ===== LOADING E STATI VUOTI ===== */
+.loading-container {
+    -fx-alignment: center;
+    -fx-spacing: 20px;
+    -fx-padding: 60px;
+}
+
+.loading-text {
+    -fx-text-fill: #64748b;
+    -fx-font-size: 16px;
+}
+
+.empty-state {
+    -fx-alignment: center;
+    -fx-spacing: 16px;
+    -fx-padding: 60px;
+}
+
+.empty-icon {
+    -fx-background-color: #f1f5f9;
+    -fx-background-radius: 50%;
+    -fx-padding: 24px;
+    -fx-pref-width: 96px;
+    -fx-pref-height: 96px;
+    -fx-alignment: center;
+}
+
+.empty-title {
+    -fx-text-fill: #1e293b;
+    -fx-font-size: 18px;
+    -fx-font-weight: 500;
+}
+
+.empty-description {
+    -fx-text-fill: #64748b;
+    -fx-font-size: 14px;
+    -fx-text-alignment: center;
+    -fx-wrap-text: true;
+}
+
+/* ===== SKELETON LOADING ===== */
+.skeleton-card {
+    -fx-background-color: white;
+    -fx-background-radius: 16px;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 16px;
+    -fx-border-width: 1px;
+    -fx-padding: 0;
+    -fx-spacing: 0;
+    -fx-pref-width: 320px;
+    -fx-max-width: 320px;
+}
+
+.skeleton-image {
+    -fx-background-color: #e2e8f0;
+    -fx-background-radius: 16px 16px 0 0;
+    -fx-pref-height: 200px;
+}
+
+.skeleton-content {
+    -fx-padding: 20px;
+    -fx-spacing: 12px;
+}
+
+.skeleton-line {
+    -fx-background-color: #e2e8f0;
+    -fx-background-radius: 4px;
+    -fx-pref-height: 16px;
+}
+
+.skeleton-line-short {
+    -fx-pref-width: 120px;
+}
+
+.skeleton-line-medium {
+    -fx-pref-width: 200px;
+}
+
+.skeleton-line-long {
+    -fx-pref-width: 280px;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+.small-screen .category-menu {
+    -fx-pref-width: 0;
+    -fx-min-width: 0;
+    -fx-max-width: 0;
+}
+
+.small-screen .product-card {
+    -fx-pref-width: 280px;
+    -fx-max-width: 280px;
+}
+
+/* ecc */
+
+    
+    .product-card {
+        -fx-pref-width: 280px;
+        -fx-max-width: 280px;
+    }
+    
+    .search-container {
+        -fx-max-width: 500px;
+        -fx-pref-width: 500px;
+    }
+    
+    .search-field {
+        -fx-pref-width: 380px;
+    }
+
+
+
+/* ===== ANIMAZIONI ===== */
+.product-card {
+    -fx-transition: all 0.3s ease;
+}
+
+.category-button, .action-button, .details-button, .offer-button {
+    -fx-transition: all 0.2s ease;
+}
+
+/* ===== SCROLLBAR PERSONALIZZATA ===== */
+.scroll-pane .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 12px;
+}
+
+.scroll-pane .scroll-bar:vertical .track {
+    -fx-background-color: #f1f5f9;
+    -fx-background-radius: 6px;
+}
+
+.scroll-pane .scroll-bar:vertical .thumb {
+    -fx-background-color: #cbd5e1;
+    -fx-background-radius: 6px;
+}
+
+.scroll-pane .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #94a3b8;
+}
+
+.scroll-pane .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-pref-height: 12px;
+}
+
+.scroll-pane .scroll-bar:horizontal .track {
+    -fx-background-color: #f1f5f9;
+    -fx-background-radius: 6px;
+}
+
+.scroll-pane .scroll-bar:horizontal .thumb {
+    -fx-background-color: #cbd5e1;
+    -fx-background-radius: 6px;
+}
+
+.scroll-pane .scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: #94a3b8;
+}
+
+.inserisci-button {
+    -fx-background-color: #10b981;
+    -fx-text-fill: white;
+    -fx-padding: 12px 20px;
+    -fx-background-radius: 12px;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-cursor: hand;
+}
+
+.inserisci-button:hover {
+    -fx-background-color: #059669;
+}
+
+
+/* ===== BOTTONE MESSAGGI INGRANDITO ===== */
+.contact-button-large {
+    -fx-background-color: #000000; /* Nero invece di azzurro */
+    -fx-text-fill: black;
+    -fx-font-weight: bold;
+    -fx-background-radius: 25px;
+    -fx-border-radius: 25px;
+    -fx-padding: 12px;
+    -fx-min-width: 50px;
+    -fx-min-height: 50px;
+    -fx-font-size: 18px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.4), 6, 0, 0, 2); /* Ombra grigia invece di azzurra */
+}
+
+.contact-button-large:hover {
+    -fx-background-color: #333333; /* Nero più chiaro per hover */
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.5), 10, 0, 0, 3); /* Ombra grigia più intensa */
+}
+
+.contact-button-large:pressed {
+    -fx-background-color: #666666; /* Grigio scuro per pressed */
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 4, 0, 0, 1); /* Ombra grigia più leggera */
+}
+
+
+/* ===== PRODUCT CARD - DIMENSIONI FISSE ===== */
+.product-card {
+    -fx-background-color: white;
+    -fx-background-radius: 16px;
+    -fx-border-color: #192a54;
+    -fx-border-radius: 16px;
+    -fx-border-width: 1px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 4, 0, 0, 2);
+    -fx-padding: 0;
+    -fx-spacing: 0;
+    -fx-pref-width: 320px;
+    -fx-min-width: 320px;
+    -fx-max-width: 320px;
+    -fx-pref-height: 480px;
+    -fx-min-height: 480px;
+    -fx-max-height: 480px;
+}
+
+.product-image-container {
+    -fx-background-radius: 16px 16px 0 0;
+    -fx-pref-height: 200px;
+    -fx-min-height: 200px;
+    -fx-max-height: 200px;
+    -fx-alignment: center;
+}
+
+.product-image {
+    -fx-background-radius: 16px 16px 0 0;
+    -fx-fit-width: 320px;
+    -fx-fit-height: 200px;
+    -fx-preserve-ratio: false;
+}
+
+.product-content {
+    -fx-padding: 20px;
+    -fx-spacing: 12px;
+    -fx-pref-height: 280px;
+    -fx-min-height: 280px;
+    -fx-max-height: 280px;
+}
+
+.product-title {
+    -fx-fill: #1e293b;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-wrap-text: true;
+    -fx-max-width: 280px;
+}
+
+.product-description {
+    -fx-fill: #64748b;
+    -fx-font-size: 14px;
+    -fx-wrap-text: true;
+    -fx-max-width: 280px;
+    -fx-max-height: 60px;
+}
+
+.product-meta {
+    -fx-spacing: 8px;
+    -fx-pref-height: 40px;
+    -fx-min-height: 40px;
+    -fx-max-height: 40px;
+}
+
+.meta-row {
+    -fx-spacing: 8px;
+    -fx-alignment: center-left;
+}
+
+.meta-text {
+    -fx-fill: #64748b;
+    -fx-font-size: 12px;
+}
+
+.product-actions {
+    -fx-spacing: 12px;
+    -fx-alignment: center;
+    -fx-pref-height: 50px;
+    -fx-min-height: 50px;
+    -fx-max-height: 50px;
+}
+
+/* Forza dimensioni fisse per i bottoni */
+.details-button, .offer-button, .cart-button, .contact-button-action {
+    -fx-pref-width: 140px;
+    -fx-min-width: 140px;
+    -fx-max-width: 140px;
+    -fx-pref-height: 40px;
+    -fx-min-height: 40px;
+    -fx-max-height: 40px;
+}
+
+/* ===== PRODUCT GRID - LAYOUT UNIFORME ===== */
+.product-grid {
+    -fx-hgap: 24px;
+    -fx-vgap: 24px;
+    -fx-padding: 0;
+    -fx-alignment: top-center;
+}
+
+/* Assicura che tutte le tile abbiano la stessa dimensione */
+.product-grid .tile {
+    -fx-pref-width: 320px;
+    -fx-pref-height: 480px;
+}
+/* Stile per l'icona all'interno del bottone */
+.contact-button-large .image-view {
+    -fx-fit-width: 28px;
+    -fx-fit-height: 28px;
+}
+
+/* Stile per il testo (emoji) quando l'icona non è disponibile */
+.contact-button-large .text {
+    -fx-font-size: 20px;
+}

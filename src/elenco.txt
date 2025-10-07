@@ -1,0 +1,33 @@
+Elenco del percorso delle cartelle
+Numero di serie del volume: BCC9-57D3
+C:.
+¦   elenco.txt
+¦   
++---application
+¦   ¦   application.css
+¦   ¦   Main.java
+¦   ¦   
+¦   +---Classe
+¦   ¦       utente.java
+¦   ¦       
+¦   +---controls
+¦   ¦       ControlloLogin.java
+¦   ¦       ControlloRegistrazione.java
+¦   ¦       
+¦   +---DB
+¦   ¦       ConnessioneDB.java
+¦   ¦       GestoreUtenti.java
+¦   ¦       
+¦   +---schermata
+¦           CategoryMenu.java
+¦           Footer.java
+¦           principali.css
+¦           ProductCard.java
+¦           ProductGrid.java
+¦           SchermataPrincipale.java
+¦           TopBar.java
+¦           
++---test
+        TestAccesso.java
+        TestRegistrazione.java
+        
