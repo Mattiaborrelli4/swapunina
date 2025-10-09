@@ -1,84 +1,174 @@
 package schermata;
 
-import application.Classe.Messaggio;
 import application.DB.MessaggioDAO;
-import application.DB.UtentiDAO;
+import application.Classe.Messaggio;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public class FinestraMessaggi {
-    private final int utente1;
-    private final int utente2;
-    private final String nomeInterlocutore;
-
-    // Costruttore esistente
-    public FinestraMessaggi(int utente1, int utente2, String nomeInterlocutore) {
-        this.utente1 = utente1;
-        this.utente2 = utente2;
-        this.nomeInterlocutore = nomeInterlocutore;
-        mostraFinestra();
-    }
+    private Stage stage;
+    private int currentUserId;
+    private int otherUserId;
+    private String otherUserName;
+    private MessaggioDAO messaggioDAO;
     
-    // Nuovo costruttore
-    public FinestraMessaggi(int utente1, int utente2) {
-        this(utente1, utente2, ottenereNomeUtente(utente2));
-    }
-    
-    private static String ottenereNomeUtente(int userId) {
-        UtentiDAO utentiDAO = new UtentiDAO();
-        return utentiDAO.getNomeUtenteById(userId);
-    }
-    
-    private void mostraFinestra() {
-        Stage stage = new Stage();
-        stage.setTitle("Conversazione con " + nomeInterlocutore);
+    private ListView<Messaggio> messagesListView;
+    private TextField messageField;
+    private Button sendButton;
 
-        VBox root = new VBox(10);
-        root.setPadding(new Insets(15));
-
-        TextArea areaMessaggi = new TextArea();
-        areaMessaggi.setEditable(false);
-        areaMessaggi.setWrapText(true);
-        aggiornaMessaggi(areaMessaggi);
-
-        TextField input = new TextField();
-        input.setPromptText("Scrivi un messaggio...");
-
-        Button inviaBtn = new Button("Invia");
-        inviaBtn.setOnAction(e -> {
-            String testo = input.getText().trim();
-            if (!testo.isEmpty()) {
-                Messaggio nuovo = new Messaggio(utente1, utente2, testo, null);
-                new MessaggioDAO().inviaMessaggio(nuovo);
-                input.clear();
-                aggiornaMessaggi(areaMessaggi);
-            }
-        });
-
-        HBox box = new HBox(10, input, inviaBtn);
-        box.setHgrow(input, Priority.ALWAYS);
-
-        root.getChildren().addAll(areaMessaggi, box);
-
-        Scene scene = new Scene(root, 400, 300);
-        stage.setScene(scene);
+    public FinestraMessaggi(int currentUserId, int otherUserId, String otherUserName) {
+        this.currentUserId = currentUserId;
+        this.otherUserId = otherUserId;
+        this.otherUserName = otherUserName;
+        this.messaggioDAO = new MessaggioDAO();
+        
+        initializeUI();
+        loadMessages();
         stage.show();
     }
 
-    private void aggiornaMessaggi(TextArea area) {
-        MessaggioDAO dao = new MessaggioDAO();
-        List<Messaggio> conversazione = dao.getConversazione(utente1, utente2);
-        StringBuilder testo = new StringBuilder();
-        for (Messaggio m : conversazione) {
-            // Determine if the message is from the current user or the interlocutor
-            String prefisso = (m.getMittenteId() == utente1) ? "Tu: " : (nomeInterlocutore + ": ");
-            testo.append(prefisso).append(m.getTesto()).append("\n");
+    private void initializeUI() {
+        stage = new Stage();
+        stage.setTitle("Chat con " + otherUserName);
+        stage.setWidth(500);
+        stage.setHeight(600);
+
+        BorderPane root = new BorderPane();
+
+        // Header semplice
+        Label headerLabel = new Label("Chat con: " + otherUserName);
+        headerLabel.setFont(Font.font("Arial", 16));
+        headerLabel.setPadding(new Insets(10));
+        root.setTop(headerLabel);
+
+        // Area messaggi
+        messagesListView = new ListView<>();
+        messagesListView.setCellFactory(param -> new ListCell<Messaggio>() {
+            @Override
+            protected void updateItem(Messaggio message, boolean empty) {
+                super.updateItem(message, empty);
+                
+                if (empty || message == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    VBox messageBox = new VBox(5);
+                    messageBox.setPadding(new Insets(5));
+                    
+                    HBox contentBox = new HBox();
+                    boolean isMyMessage = message.getMittenteId() == currentUserId;
+                    contentBox.setAlignment(isMyMessage ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+                    
+                    VBox textBox = new VBox(2);
+                    textBox.setMaxWidth(300);
+                    
+                    // Testo messaggio
+                    Label messageLabel = new Label(message.getTesto());
+                    messageLabel.setWrapText(true);
+                    messageLabel.setPadding(new Insets(8, 12, 8, 12));
+                    messageLabel.setStyle("-fx-background-color: " + 
+                                        (isMyMessage ? "#DCF8C6" : "#FFFFFF") + 
+                                        "; -fx-background-radius: 10; " +
+                                        "-fx-border-color: #E0E0E0; -fx-border-radius: 10;");
+                    
+                    // Timestamp
+                    Label timeLabel = new Label(formatTime(message.getDataInvio()));
+                    timeLabel.setStyle("-fx-text-fill: gray; -fx-font-size: 10px;");
+                    timeLabel.setAlignment(isMyMessage ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+                    
+                    textBox.getChildren().addAll(messageLabel, timeLabel);
+                    contentBox.getChildren().add(textBox);
+                    
+                    messageBox.getChildren().add(contentBox);
+                    setGraphic(messageBox);
+                }
+            }
+        });
+
+        root.setCenter(messagesListView);
+
+        // Area input
+        HBox inputBox = new HBox(10);
+        inputBox.setPadding(new Insets(10));
+        inputBox.setAlignment(Pos.CENTER);
+        
+        messageField = new TextField();
+        messageField.setPromptText("Scrivi un messaggio...");
+        messageField.setPrefWidth(350);
+        
+        sendButton = new Button("Invia");
+        sendButton.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
+        
+        messageField.setOnAction(e -> sendMessage());
+        sendButton.setOnAction(e -> sendMessage());
+        
+        inputBox.getChildren().addAll(messageField, sendButton);
+        root.setBottom(inputBox);
+
+        Scene scene = new Scene(root);
+        stage.setScene(scene);
+    }
+
+    private void loadMessages() {
+        try {
+            List<Messaggio> messages = messaggioDAO.getConversazione(currentUserId, otherUserId);
+            messagesListView.getItems().setAll(messages);
+            
+            if (!messages.isEmpty()) {
+                messagesListView.scrollTo(messages.size() - 1);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            showAlert("Errore", "Impossibile caricare i messaggi: " + e.getMessage());
         }
-        area.setText(testo.toString());
+    }
+
+    private void sendMessage() {
+        String text = messageField.getText().trim();
+        if (text.isEmpty()) return;
+        
+        try {
+            // Messaggio semplice senza riferimento ad annuncio
+            Messaggio newMessage = new Messaggio(currentUserId, otherUserId, text, null);
+            
+            boolean success = messaggioDAO.inviaMessaggio(newMessage);
+            if (success) {
+                messageField.clear();
+                loadMessages();
+            } else {
+                showAlert("Errore", "Impossibile inviare il messaggio");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            showAlert("Errore", "Impossibile inviare il messaggio: " + e.getMessage());
+        }
+    }
+
+    private String formatTime(LocalDateTime dateTime) {
+        if (dateTime == null) return "";
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+        return dateTime.format(formatter);
+    }
+
+    private void showAlert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        
+        ButtonType okButton = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+        alert.getButtonTypes().setAll(okButton);
+        alert.showAndWait();
     }
 }

@@ -171,11 +171,8 @@ public class MessaggioDAO {
         List<utente> utenti = new ArrayList<>();
         
         String query = """
-            SELECT DISTINCT u.*, 
-                   COALESCE(a.titolo, 'Conversazione') as titolo_annuncio
+            SELECT DISTINCT u.*
             FROM utente u
-            LEFT JOIN messaggio m ON (u.id = m.mittente_id OR u.id = m.destinatario_id)
-            LEFT JOIN annuncio a ON m.annuncio_id = a.id
             WHERE u.id IN (
                 SELECT mittente_id FROM messaggio WHERE destinatario_id = ?
                 UNION
@@ -200,7 +197,6 @@ public class MessaggioDAO {
                         ""
                     );
                     u.setId(rs.getInt("id"));
-                    u.setProperty("titolo_annuncio", rs.getString("titolo_annuncio"));
                     utenti.add(u);
                 }
             }
