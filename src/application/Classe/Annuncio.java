@@ -78,7 +78,7 @@ public class Annuncio {
     }
 
     public boolean isDisponibile() {
-        return "ATTIVO".equalsIgnoreCase(this.stato); // 🔥 Aggiornato
+        return "ATTIVO".equalsIgnoreCase(this.stato);
     }
 
     public boolean isAcquistoDiretto() {

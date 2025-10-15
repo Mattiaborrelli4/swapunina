@@ -54,10 +54,13 @@ public class ProductCard extends VBox {
     private Consumer<Annuncio> onDetailsAction;
     private Consumer<Annuncio> onAction;
     private Consumer<Annuncio> onFavoriteAction;
+    private Consumer<Annuncio> onAnnuncioModificato; // ✅ NUOVO: Callback per annuncio modificato
     private final int currentUserId = SessionManager.getCurrentUserId();
+    private final Annuncio annuncio; // ✅ NUOVO: Memorizza l'annuncio
 
     public ProductCard(Annuncio annuncio) {
         super(10);
+        this.annuncio = annuncio; // ✅ NUOVO: Salva l'annuncio
         setPadding(new Insets(12));
         getStyleClass().add("product-card");
 
@@ -67,6 +70,13 @@ public class ProductCard extends VBox {
         setupEventHandlers(annuncio);
         applyStyles();
         setupTooltips();
+    }
+
+    /**
+     * ✅ NUOVO METODO: Ottieni l'ID dell'annuncio
+     */
+    public int getAnnuncioId() {
+        return annuncio.getId();
     }
 
     private void initializeCard() {
@@ -244,20 +254,26 @@ public class ProductCard extends VBox {
         actions.setAlignment(Pos.CENTER);
         actions.getStyleClass().add("product-actions");
 
-        // Pulsanti recensioni (solo se non è il proprio annuncio)
-        if (currentUserId != -1 && currentUserId != annuncio.getVenditoreId()) {
+        // ✅ MODIFICA: Pulsanti recensioni - SEMPRE mostra "Recensioni", "Lascia Recensione" solo se non è il proprio annuncio
+        if (currentUserId != -1) {
             Button recensioniBtn = new Button("⭐ Recensioni");
-            Button lasciaRecensioneBtn = new Button("✍️ Lascia Recensione");
-            
             recensioniBtn.setStyle("-fx-background-color: #f1c40f; -fx-text-fill: white; -fx-font-weight: bold;");
-            lasciaRecensioneBtn.setStyle("-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold;");
-            
             recensioniBtn.setOnAction(e -> mostraRecensioniVenditore(annuncio));
-            lasciaRecensioneBtn.setOnAction(e -> lasciaRecensione(annuncio));
             
-            HBox recensioniBox = new HBox(10, recensioniBtn, lasciaRecensioneBtn);
+            HBox recensioniBox = new HBox(10);
             recensioniBox.setAlignment(Pos.CENTER);
             recensioniBox.getStyleClass().add("review-actions");
+            
+            // Sempre mostra il pulsante per vedere le recensioni
+            recensioniBox.getChildren().add(recensioniBtn);
+            
+            // Mostra il pulsante "Lascia Recensione" solo se non è il proprio annuncio
+            if (currentUserId != annuncio.getVenditoreId()) {
+                Button lasciaRecensioneBtn = new Button("✍️ Lascia Recensione");
+                lasciaRecensioneBtn.setStyle("-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold;");
+                lasciaRecensioneBtn.setOnAction(e -> lasciaRecensione(annuncio));
+                recensioniBox.getChildren().add(lasciaRecensioneBtn);
+            }
             
             content.getChildren().addAll(header, description, metaInfo, actions, recensioniBox);
         } else {
@@ -351,6 +367,11 @@ public class ProductCard extends VBox {
                 
                 if (successo) {
                     mostraMessaggio("Annuncio aggiornato con successo!");
+                    
+                    // ✅ NUOVO: Notifica che l'annuncio è stato modificato
+                    if (onAnnuncioModificato != null) {
+                        onAnnuncioModificato.accept(annuncioModificato);
+                    }
                 } else {
                     mostraMessaggio("Errore durante l'aggiornamento dell'annuncio.");
                 }
@@ -660,5 +681,12 @@ public class ProductCard extends VBox {
 
     public void setOnFavoriteAction(Consumer<Annuncio> handler) {
         this.onFavoriteAction = handler;
+    }
+
+    /**
+     * ✅ NUOVO SETTER: Per il callback di annuncio modificato
+     */
+    public void setOnAnnuncioModificato(Consumer<Annuncio> handler) {
+        this.onAnnuncioModificato = handler;
     }
 }

@@ -10,7 +10,10 @@ import javafx.scene.image.ImageView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.scene.shape.Circle;
+import javafx.util.StringConverter;
 import java.io.File;
+import java.math.BigDecimal;
+import java.util.Optional;
 
 import application.DB.UtentiDAO;
 
@@ -20,9 +23,13 @@ public class AccountDialog extends Dialog<Void> {
     private GridPane grid;
     private String userEmail;
     private Runnable logoutHandler;
+    private CarrelloManager carrelloManager;
+    private Label saldoLabel;
+    private ScrollPane scrollPane;
     
     public AccountDialog(String nome, String email, String userEmail) {
         this.userEmail = userEmail;
+        this.carrelloManager = CarrelloManager.getInstance();
         
         if (userEmail == null || userEmail.isEmpty()) {
             System.out.println("Attenzione: userEmail è null o vuota");
@@ -32,13 +39,45 @@ public class AccountDialog extends Dialog<Void> {
         
         // Imposta dimensioni della finestra
         setWidth(500);
-        setHeight(600);
+        setHeight(650);
+        
+        // Crea il contenuto principale
+        VBox mainContent = createMainContent(nome, email);
+        
+        // Crea ScrollPane per permettere lo scorrimento
+        scrollPane = new ScrollPane();
+        scrollPane.setContent(mainContent);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefViewportHeight(600);
+        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        
+        // Imposta il contenuto della finestra
+        getDialogPane().setContent(scrollPane);
+        getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        
+        // Applica stile iniziale
+        applyTheme();
+        
+        // Imposta dimensioni minime
+        getDialogPane().setMinWidth(450);
+        getDialogPane().setMinHeight(600);
+        
+        // Aggiorna il saldo all'apertura
+        aggiornaSaldoDisplay();
+    }
+    
+    // NUOVO METODO: Crea il contenuto principale dentro lo ScrollPane
+    private VBox createMainContent(String nome, String email) {
+        VBox mainContent = new VBox();
+        mainContent.setSpacing(20);
+        mainContent.setPadding(new Insets(20));
+        mainContent.setStyle("-fx-background-color: white;");
         
         // Pannello principale con layout migliorato
         grid = new GridPane();
         grid.setHgap(20);
         grid.setVgap(15);
-        grid.setPadding(new Insets(30, 30, 30, 30));
+        grid.setPadding(new Insets(10));
         grid.setAlignment(Pos.CENTER);
         
         // Container per l'immagine profilo (centrato in alto)
@@ -67,7 +106,26 @@ public class AccountDialog extends Dialog<Void> {
         grid.addRow(1, nomeLabel, nomeValue);
         grid.addRow(2, emailLabel, emailValue);
         
+        // Sezione Conto
+        VBox contoSection = createContoSection();
+        grid.add(contoSection, 0, 3, 2, 1);
+        
         // Toggle per tema chiaro/scuro
+        HBox themeBox = createThemeBox();
+        grid.add(themeBox, 0, 4, 2, 1);
+        
+        // Container per i pulsanti
+        VBox buttonsContainer = createButtonsContainer();
+        grid.add(buttonsContainer, 0, 5, 2, 1);
+        
+        // Aggiungi la griglia al contenuto principale
+        mainContent.getChildren().add(grid);
+        
+        return mainContent;
+    }
+    
+    // NUOVO METODO: Crea la sezione tema
+    private HBox createThemeBox() {
         HBox themeBox = new HBox(10);
         themeBox.setAlignment(Pos.CENTER);
         themeBox.setPadding(new Insets(20, 0, 10, 0));
@@ -105,9 +163,11 @@ public class AccountDialog extends Dialog<Void> {
         });
         
         themeBox.getChildren().addAll(themeLabel, toggleContainer);
-        grid.add(themeBox, 0, 3, 2, 1);
-        
-        // Container per i pulsanti
+        return themeBox;
+    }
+    
+    // NUOVO METODO: Crea il container dei pulsanti
+    private VBox createButtonsContainer() {
         VBox buttonsContainer = new VBox(15);
         buttonsContainer.setAlignment(Pos.CENTER);
         buttonsContainer.setPadding(new Insets(20, 0, 0, 0));
@@ -124,24 +184,210 @@ public class AccountDialog extends Dialog<Void> {
         changePasswordButton.setOnAction(e -> showChangePasswordDialog());
         changePasswordButton.setMaxWidth(Double.MAX_VALUE);
         
+        // Pulsante storico movimenti
+        Button storicoButton = new Button("📊 Storico Movimenti");
+        storicoButton.setStyle("-fx-background-color: #8b5cf6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10px 20px;");
+        storicoButton.setOnAction(e -> mostraStoricoMovimenti());
+        storicoButton.setMaxWidth(Double.MAX_VALUE);
+        
         // Pulsante logout
         Button logoutButton = setupLogoutButton();
         
-        buttonsContainer.getChildren().addAll(changeImageButton, changePasswordButton, logoutButton);
-        grid.add(buttonsContainer, 0, 4, 2, 1);
+        buttonsContainer.getChildren().addAll(changeImageButton, changePasswordButton, storicoButton, logoutButton);
+        return buttonsContainer;
+    }
+
+    // NUOVO METODO: Crea la sezione conto
+    private VBox createContoSection() {
+        VBox contoSection = new VBox(10);
+        contoSection.setAlignment(Pos.CENTER);
+        contoSection.setPadding(new Insets(15));
+        contoSection.setStyle("-fx-background-color: #f8f9fa; -fx-border-radius: 8; -fx-border-color: #e9ecef;");
         
-        // Imposta il contenuto della finestra
-        getDialogPane().setContent(grid);
-        getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        Label titoloConto = new Label("💳 Il Mio Conto");
+        titoloConto.setStyle("-fx-font-weight: bold; -fx-font-size: 16px;");
         
-        // Applica stile iniziale
-        applyTheme();
+        HBox saldoBox = new HBox(10);
+        saldoBox.setAlignment(Pos.CENTER);
         
-        // Imposta dimensioni minime
-        getDialogPane().setMinWidth(450);
-        getDialogPane().setMinHeight(550);
+        Label saldoTitolo = new Label("Saldo Attuale:");
+        saldoTitolo.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        
+        saldoLabel = new Label("€0,00");
+        saldoLabel.setStyle("-fx-font-size: 18px; -fx-text-fill: #2e7d32; -fx-font-weight: bold;");
+        
+        saldoBox.getChildren().addAll(saldoTitolo, saldoLabel);
+        
+        Button ricaricaButton = new Button("💰 Ricarica");
+        ricaricaButton.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px 16px;");
+        ricaricaButton.setOnAction(e -> mostraDialogRicarica());
+        
+        HBox pulsantiBox = new HBox(10);
+        pulsantiBox.setAlignment(Pos.CENTER);
+        
+        Button aggiornaButton = new Button("🔄 Aggiorna");
+        aggiornaButton.setStyle("-fx-background-color: #6b7280; -fx-text-fill: white; -fx-padding: 8px 16px;");
+        aggiornaButton.setOnAction(e -> aggiornaSaldoDisplay());
+        
+        pulsantiBox.getChildren().addAll(ricaricaButton, aggiornaButton);
+        
+        contoSection.getChildren().addAll(titoloConto, saldoBox, pulsantiBox);
+        
+        return contoSection;
     }
     
+    // METODO: Mostra dialog per ricarica
+    private void mostraDialogRicarica() {
+        Dialog<Double> dialog = new Dialog<>();
+        dialog.setTitle("Ricarica Conto");
+        dialog.setHeaderText("Inserisci l'importo da caricare");
+
+        // Setup dei bottoni
+        ButtonType ricaricaButtonType = new ButtonType("Ricarica", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(ricaricaButtonType, ButtonType.CANCEL);
+
+        // Creazione del contenuto
+        VBox content = new VBox();
+        content.setSpacing(15);
+        content.setPadding(new Insets(20));
+
+        Label labelImporto = new Label("Importo (€):");
+        Spinner<Double> spinnerImporto = new Spinner<>(1.0, 1000.0, 10.0, 5.0);
+        spinnerImporto.setEditable(true);
+        
+        // Formattazione dello spinner
+        spinnerImporto.getValueFactory().setConverter(new StringConverter<Double>() {
+            @Override
+            public String toString(Double value) {
+                return String.format("%.2f", value);
+            }
+
+            @Override
+            public Double fromString(String string) {
+                try {
+                    return Double.parseDouble(string.replace(",", "."));
+                } catch (NumberFormatException e) {
+                    return 10.0;
+                }
+            }
+        });
+
+        Label labelMetodo = new Label("Metodo di pagamento:");
+        ComboBox<String> comboMetodo = new ComboBox<>();
+        comboMetodo.getItems().addAll(
+            "Carta di Credito",
+            "PayPal", 
+            "Bonifico Bancario",
+            "Carta Prepagata"
+        );
+        comboMetodo.setValue("Carta di Credito");
+
+        content.getChildren().addAll(labelImporto, spinnerImporto, labelMetodo, comboMetodo);
+        dialog.getDialogPane().setContent(content);
+
+        // Converti il risultato quando viene premuto il bottone Ricarica
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == ricaricaButtonType) {
+                return spinnerImporto.getValue();
+            }
+            return null;
+        });
+
+        // Mostra la finestra e processa il risultato
+        Optional<Double> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            double importo = result.get();
+            eseguiRicarica(importo, comboMetodo.getValue());
+        }
+    }
+    
+    // METODO: Esegue la ricarica
+    private void eseguiRicarica(double importo, String metodoPagamento) {
+        try {
+            boolean successo = carrelloManager.ricaricaConto(importo, metodoPagamento);
+            
+            if (successo) {
+                // Aggiorna la visualizzazione del saldo
+                aggiornaSaldoDisplay();
+                
+                // Mostra conferma
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Ricarica Completata");
+                alert.setHeaderText(null);
+                alert.setContentText(String.format(
+                    "Ricarica di €%.2f effettuata con successo!\nMetodo: %s\nNuovo saldo: %s",
+                    importo, metodoPagamento, carrelloManager.getSaldoFormattato()
+                ));
+                alert.showAndWait();
+            } else {
+                showAlert("Errore", "Errore durante la ricarica. Riprova.");
+            }
+        } catch (Exception e) {
+            showAlert("Errore", "Si è verificato un errore: " + e.getMessage());
+        }
+    }
+    
+    // METODO: Aggiorna la visualizzazione del saldo
+    private void aggiornaSaldoDisplay() {
+        BigDecimal saldo = carrelloManager.getSaldoUtente();
+        saldoLabel.setText(String.format("€%.2f", saldo));
+    }
+    
+    // METODO: Mostra storico movimenti
+    private void mostraStoricoMovimenti() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Storico Movimenti");
+        alert.setHeaderText("Ultimi movimenti del conto");
+        
+        StringBuilder movimentiText = new StringBuilder();
+        var movimenti = carrelloManager.getMovimentiConto();
+        
+        if (movimenti.isEmpty()) {
+            movimentiText.append("Nessun movimento trovato.");
+        } else {
+            for (var movimento : movimenti) {
+                String tipo = "";
+                String segno = "";
+                
+                switch (movimento.getTipo()) {
+                    case RICARICA:
+                        tipo = "💰 Ricarica";
+                        segno = "+";
+                        break;
+                    case ACQUISTO:
+                        tipo = "🛒 Acquisto";
+                        segno = "-";
+                        break;
+                    case ACCREDITO:
+                        tipo = "💳 Accredito";
+                        segno = "+";
+                        break;
+                    case ADDEBITO:
+                        tipo = "💸 Addebito";
+                        segno = "-";
+                        break;
+                }
+                
+                movimentiText.append(String.format("%s | %s€%.2f | %s\n",
+                    movimento.getData().toLocalDate(),
+                    segno,
+                    movimento.getImporto(),
+                    movimento.getDescrizione()
+                ));
+            }
+        }
+        
+        TextArea textArea = new TextArea(movimentiText.toString());
+        textArea.setEditable(false);
+        textArea.setWrapText(true);
+        textArea.setMaxWidth(Double.MAX_VALUE);
+        textArea.setMaxHeight(Double.MAX_VALUE);
+        
+        alert.getDialogPane().setContent(textArea);
+        alert.getDialogPane().setPrefSize(500, 400);
+        alert.showAndWait();
+    }
+
     // Metodo per impostare l'handler del logout
     public void setOnLogout(Runnable handler) {
         this.logoutHandler = handler;
@@ -164,24 +410,33 @@ public class AccountDialog extends Dialog<Void> {
     }
     
     private void applyTheme() {
-        if (darkMode) {
-            // Applica tema scuro
-            grid.setStyle("-fx-background-color: #2d2d2d; -fx-text-fill: white;");
-            getDialogPane().setStyle("-fx-background-color: #2d2d2d;");
+        String backgroundColor = darkMode ? "#2d2d2d" : "white";
+        String textColor = darkMode ? "white" : "black";
+        
+        // Applica il tema allo ScrollPane e al contenuto
+        scrollPane.setStyle("-fx-background: " + backgroundColor + "; -fx-background-color: " + backgroundColor + ";");
+        
+        // Trova il VBox principale dentro lo ScrollPane
+        if (scrollPane.getContent() instanceof VBox) {
+            VBox mainContent = (VBox) scrollPane.getContent();
+            mainContent.setStyle("-fx-background-color: " + backgroundColor + ";");
             
-            for (javafx.scene.Node node : grid.getChildren()) {
-                if (node instanceof Label) {
-                    ((Label) node).setStyle("-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px;");
-                }
-            }
-        } else {
-            // Applica tema chiaro
-            grid.setStyle("-fx-background-color: white; -fx-text-fill: black;");
-            getDialogPane().setStyle("-fx-background-color: white;");
-            
-            for (javafx.scene.Node node : grid.getChildren()) {
-                if (node instanceof Label) {
-                    ((Label) node).setStyle("-fx-text-fill: black; -fx-font-weight: bold; -fx-font-size: 14px;");
+            // Applica il tema a tutti i nodi figli
+            applyThemeToNode(mainContent, textColor);
+        }
+        
+        getDialogPane().setStyle("-fx-background-color: " + backgroundColor + ";");
+    }
+    
+    // NUOVO METODO: Applica il tema ricorsivamente a tutti i nodi
+    private void applyThemeToNode(javafx.scene.Node node, String textColor) {
+        if (node instanceof Label) {
+            ((Label) node).setStyle("-fx-text-fill: " + textColor + ";");
+        } else if (node instanceof VBox || node instanceof HBox || node instanceof GridPane) {
+            // Se è un container, applica il tema a tutti i figli
+            if (node instanceof Pane) {
+                for (javafx.scene.Node child : ((Pane) node).getChildren()) {
+                    applyThemeToNode(child, textColor);
                 }
             }
         }
@@ -393,7 +648,7 @@ public class AccountDialog extends Dialog<Void> {
                         event.consume();
                     }
                 } catch (Exception e) {
-                    showAlert("Errore", "Si è verificato un errore durante il cambio password: " + e.getMessage());
+                    showAlert("Errore", "Si è verificato un errore durante el cambio password: " + e.getMessage());
                     event.consume();
                 }
             }

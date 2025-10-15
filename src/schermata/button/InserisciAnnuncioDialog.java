@@ -10,6 +10,8 @@ import javafx.util.Callback;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import application.Classe.Annuncio;
 import application.Classe.Oggetto;
@@ -34,6 +36,15 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
     private ComboBox<String> tipoCombo;
     private ComboBox<String> origineCombo;
     private TextField prezzoField;
+    
+    // Label per messaggi di errore
+    private Label erroreTitolo;
+    private Label erroreDescrizione;
+    private Label erroreCategoria;
+    private Label erroreTipo;
+    private Label erroreOrigine;
+    private Label errorePrezzo;
+    private Label erroreImmagine;
 
     /**
      * Costruttore del dialog per l'inserimento annuncio
@@ -44,6 +55,7 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
         
         initializeUI();
         setupEventHandlers();
+        setupValidation();
     }
 
     /**
@@ -54,7 +66,7 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
         getDialogPane().getStyleClass().add("root");
         setTitle("Inserisci Nuovo Annuncio");
         setHeaderText("Compila tutti i campi richiesti");
-        getDialogPane().setPrefSize(700, 600);
+        getDialogPane().setPrefSize(700, 650);
 
         // Creazione dei componenti UI
         createFormFields();
@@ -63,6 +75,9 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
         // Aggiunta dei pulsanti
         ButtonType inserisciButtonType = new ButtonType("Inserisci", ButtonBar.ButtonData.OK_DONE);
         getDialogPane().getButtonTypes().addAll(inserisciButtonType, ButtonType.CANCEL);
+        
+        // Disabilita il pulsante Inserisci inizialmente
+        setupButtonValidation();
     }
 
     /**
@@ -105,6 +120,30 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
         prezzoField = new TextField();
         prezzoField.setPromptText("Es: 12,99");
         prezzoField.setTextFormatter(createPriceTextFormatter());
+        
+        // Inizializza label errori
+        initializeErrorLabels();
+    }
+
+    /**
+     * Inizializza le label per i messaggi di errore
+     */
+    private void initializeErrorLabels() {
+        erroreTitolo = createErrorLabel();
+        erroreDescrizione = createErrorLabel();
+        erroreCategoria = createErrorLabel();
+        erroreTipo = createErrorLabel();
+        erroreOrigine = createErrorLabel();
+        errorePrezzo = createErrorLabel();
+        erroreImmagine = createErrorLabel();
+    }
+    
+    private Label createErrorLabel() {
+        Label label = new Label();
+        label.getStyleClass().add("error-label");
+        label.setStyle("-fx-text-fill: red; -fx-font-size: 11px;");
+        label.setVisible(false);
+        return label;
     }
 
     /**
@@ -125,17 +164,17 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
      */
     private void setupLayout() {
         GridPane grid = new GridPane();
-        grid.setVgap(15);
+        grid.setVgap(10);
         grid.setHgap(15);
         grid.setPadding(new Insets(20));
 
-        // Aggiunta dei campi al grid layout
-        addFieldToGrid(grid, "Titolo annuncio:", titoloField, 0);
-        addFieldToGrid(grid, "Descrizione:", descrizioneArea, 1);
-        addFieldToGrid(grid, "Categoria:", categoriaCombo, 2);
-        addFieldToGrid(grid, "Tipologia:", tipoCombo, 3);
-        addFieldToGrid(grid, "Origine:", origineCombo, 4);
-        addFieldToGrid(grid, "Prezzo (€):", prezzoField, 5);
+        // Aggiunta dei campi al grid layout con label errori
+        addFieldToGrid(grid, "Titolo annuncio*:", titoloField, erroreTitolo, 0);
+        addFieldToGrid(grid, "Descrizione*:", descrizioneArea, erroreDescrizione, 1);
+        addFieldToGrid(grid, "Categoria*:", categoriaCombo, erroreCategoria, 2);
+        addFieldToGrid(grid, "Tipologia*:", tipoCombo, erroreTipo, 3);
+        addFieldToGrid(grid, "Origine*:", origineCombo, erroreOrigine, 4);
+        addFieldToGrid(grid, "Prezzo (€):", prezzoField, errorePrezzo, 5);
         
         // Sezione selezione immagine
         VBox imageSection = createImageSelectionSection();
@@ -145,20 +184,19 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
     }
 
     /**
-     * Aggiunge un campo al grid layout
-     * @param grid GridPane a cui aggiungere il campo
-     * @param labelText Testo della label
-     * @param field Componente del campo
-     * @param row Riga in cui posizionare il campo
+     * Aggiunge un campo al grid layout con label errore
      */
-    private void addFieldToGrid(GridPane grid, String labelText, Control field, int row) {
+    private void addFieldToGrid(GridPane grid, String labelText, Control field, Label errorLabel, int row) {
         grid.add(new Label(labelText), 0, row);
-        grid.add(field, 1, row);
+        
+        VBox fieldContainer = new VBox(2);
+        fieldContainer.getChildren().addAll(field, errorLabel);
+        
+        grid.add(fieldContainer, 1, row);
     }
 
     /**
      * Crea la sezione per la selezione dell'immagine
-     * @return VBox contenente i componenti per la selezione immagine
      */
     private VBox createImageSelectionSection() {
         Button selezionaImmagine = new Button("Seleziona Immagine");
@@ -167,12 +205,18 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
         // Configurazione del pulsante selezione immagine
         selezionaImmagine.setOnAction(e -> handleImageSelection(immagineSelezionata));
         
-        return new VBox(5, selezionaImmagine, immagineSelezionata);
+        VBox container = new VBox(5, 
+            new Label("Immagine:"),
+            selezionaImmagine, 
+            immagineSelezionata,
+            erroreImmagine
+        );
+        
+        return container;
     }
 
     /**
      * Gestisce la selezione di un'immagine tramite file chooser
-     * @param statusLabel Label per mostrare lo stato della selezione
      */
     private void handleImageSelection(Label statusLabel) {
         FileChooser fileChooser = new FileChooser();
@@ -184,8 +228,9 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
         if (selectedFile != null) {
             try {
                 copyImageToProjectFolder(selectedFile, statusLabel);
+                clearError(erroreImmagine);
             } catch (IOException ex) {
-                showAlert("Errore nel salvataggio dell'immagine.");
+                showError(erroreImmagine, "Errore nel salvataggio dell'immagine: " + ex.getMessage());
                 ex.printStackTrace();
             }
         }
@@ -193,11 +238,8 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
 
     /**
      * Copia l'immagine selezionata nella cartella del progetto
-     * @param selectedFile File immagine selezionato
-     * @param statusLabel Label per mostrare lo stato
      */
     private void copyImageToProjectFolder(File selectedFile, Label statusLabel) throws IOException {
-        // 🔥 MODIFICA: Percorso corretto senza "src"
         Path destFolder = Paths.get("C:/Users/matti/Desktop/project/application/img");
         
         // Crea la directory se non esiste
@@ -213,7 +255,6 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
         // Copia il file
         Files.copy(selectedFile.toPath(), destPath, StandardCopyOption.REPLACE_EXISTING);
         
-        // 🔥 MODIFICA: Percorso corretto per il database
         imagePath = "/application/img/" + fileName;
         file = destPath.toFile();
         
@@ -229,27 +270,264 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
     }
 
     /**
+     * Configura la validazione del pulsante Inserisci
+     */
+    private void setupButtonValidation() {
+        // Disabilita il pulsante Inserisci inizialmente
+        Button inserisciButton = (Button) getDialogPane().lookupButton(getDialogPane().getButtonTypes().get(0));
+        inserisciButton.setDisable(true);
+        
+        // Aggiungi listener per abilitare/disabilitare il pulsante
+        setupValidationListeners();
+    }
+
+    /**
+     * Configura i listener per la validazione in tempo reale
+     */
+    private void setupValidation() {
+        setupValidationListeners();
+    }
+
+    private void setupValidationListeners() {
+        // Listener per il titolo
+        titoloField.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal.trim().isEmpty()) {
+                showError(erroreTitolo, "Il titolo è obbligatorio");
+            } else if (newVal.length() > 100) {
+                showError(erroreTitolo, "Il titolo non può superare i 100 caratteri");
+            } else {
+                clearError(erroreTitolo);
+            }
+            updateInsertButton();
+        });
+
+        // Listener per la descrizione
+        descrizioneArea.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal.trim().isEmpty()) {
+                showError(erroreDescrizione, "La descrizione è obbligatoria");
+            } else if (newVal.length() > 500) {
+                showError(erroreDescrizione, "La descrizione non può superare i 500 caratteri");
+            } else {
+                clearError(erroreDescrizione);
+            }
+            updateInsertButton();
+        });
+
+        // Listener per le combo box
+        categoriaCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null) {
+                showError(erroreCategoria, "Seleziona una categoria");
+            } else {
+                clearError(erroreCategoria);
+            }
+            updateInsertButton();
+        });
+
+        tipoCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null) {
+                showError(erroreTipo, "Seleziona una tipologia");
+            } else {
+                clearError(erroreTipo);
+                validatePrezzoField(); // Ricontrolla il prezzo quando cambia la tipologia
+            }
+            updateInsertButton();
+        });
+
+        origineCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null) {
+                showError(erroreOrigine, "Seleziona l'origine dell'oggetto");
+            } else {
+                clearError(erroreOrigine);
+            }
+            updateInsertButton();
+        });
+
+        // Listener per il prezzo
+        prezzoField.textProperty().addListener((obs, oldVal, newVal) -> {
+            validatePrezzoField();
+            updateInsertButton();
+        });
+    }
+
+    /**
+     * Valida il campo prezzo in base alla tipologia selezionata
+     */
+    private void validatePrezzoField() {
+        String tipologia = tipoCombo.getValue();
+        String prezzoText = prezzoField.getText().trim();
+        
+        if (tipologia == null) return;
+        
+        if (tipologia.equals("Vendita") || tipologia.equals("Asta")) {
+            if (prezzoText.isEmpty()) {
+                showError(errorePrezzo, "Il prezzo è obbligatorio per " + tipologia);
+            } else {
+                try {
+                    double prezzo = Double.parseDouble(prezzoText.replace(",", "."));
+                    if (prezzo < 0) {
+                        showError(errorePrezzo, "Il prezzo non può essere negativo");
+                    } else {
+                        clearError(errorePrezzo);
+                    }
+                } catch (NumberFormatException e) {
+                    showError(errorePrezzo, "Formato prezzo non valido. Usa: 12,99");
+                }
+            }
+        } else {
+            // Per Scambio e Regalo, il prezzo è opzionale
+            if (!prezzoText.isEmpty()) {
+                try {
+                    double prezzo = Double.parseDouble(prezzoText.replace(",", "."));
+                    if (prezzo < 0) {
+                        showError(errorePrezzo, "Il prezzo non può essere negativo");
+                    } else {
+                        clearError(errorePrezzo);
+                    }
+                } catch (NumberFormatException e) {
+                    showError(errorePrezzo, "Formato prezzo non valido. Usa: 12,99");
+                }
+            } else {
+                clearError(errorePrezzo);
+            }
+        }
+    }
+
+    /**
+     * Aggiorna lo stato del pulsante Inserisci
+     */
+    private void updateInsertButton() {
+        Button inserisciButton = (Button) getDialogPane().lookupButton(getDialogPane().getButtonTypes().get(0));
+        
+        boolean isValid = isFormValid();
+        inserisciButton.setDisable(!isValid);
+    }
+
+    /**
+     * Verifica se il form è valido
+     */
+    private boolean isFormValid() {
+        // Controlla se ci sono errori visibili
+        boolean hasErrors = erroreTitolo.isVisible() || 
+                           erroreDescrizione.isVisible() || 
+                           erroreCategoria.isVisible() || 
+                           erroreTipo.isVisible() || 
+                           erroreOrigine.isVisible() || 
+                           errorePrezzo.isVisible() ||
+                           erroreImmagine.isVisible();
+        
+        // Controlla che i campi obbligatori siano compilati
+        boolean requiredFieldsFilled = !titoloField.getText().trim().isEmpty() &&
+                                      !descrizioneArea.getText().trim().isEmpty() &&
+                                      categoriaCombo.getValue() != null &&
+                                      tipoCombo.getValue() != null &&
+                                      origineCombo.getValue() != null;
+        
+        // Controlla validità prezzo in base alla tipologia
+        boolean prezzoValid = true;
+        String tipologia = tipoCombo.getValue();
+        String prezzoText = prezzoField.getText().trim();
+        
+        if (tipologia != null && (tipologia.equals("Vendita") || tipologia.equals("Asta"))) {
+            if (prezzoText.isEmpty()) {
+                prezzoValid = false;
+            } else {
+                try {
+                    double prezzo = Double.parseDouble(prezzoText.replace(",", "."));
+                    prezzoValid = prezzo >= 0;
+                } catch (NumberFormatException e) {
+                    prezzoValid = false;
+                }
+            }
+        }
+        
+        return !hasErrors && requiredFieldsFilled && prezzoValid;
+    }
+
+    /**
+     * Mostra un messaggio di errore
+     */
+    private void showError(Label errorLabel, String message) {
+        errorLabel.setText(message);
+        errorLabel.setVisible(true);
+    }
+
+    /**
+     * Nasconde un messaggio di errore
+     */
+    private void clearError(Label errorLabel) {
+        errorLabel.setText("");
+        errorLabel.setVisible(false);
+    }
+
+    /**
      * Gestisce il risultato del dialog quando viene premuto un pulsante
-     * @param buttonType Tipo di pulsante premuto
-     * @return Annuncio creato o null se annullato
      */
     private Annuncio handleDialogResult(ButtonType buttonType) {
         if (buttonType.getButtonData() == ButtonBar.ButtonData.OK_DONE) {
+            // Esegui una validazione finale prima di creare l'annuncio
+            if (!performFinalValidation()) {
+                return null; // Non chiudere il dialog se ci sono errori
+            }
             return createAnnuncioFromForm();
         }
         return null;
     }
 
     /**
-     * Crea un annuncio a partire dai dati del form
-     * @return Annuncio creato o null se ci sono errori
+     * Esegue una validazione finale prima dell'invio
      */
-    private Annuncio createAnnuncioFromForm() {
-        // Validazione dei campi obbligatori
-        if (!validateRequiredFields()) {
-            return null;
+    private boolean performFinalValidation() {
+        List<String> errors = new ArrayList<>();
+        
+        // Validazione titolo
+        if (titoloField.getText().trim().isEmpty()) {
+            errors.add("Il titolo è obbligatorio");
+            showError(erroreTitolo, "Il titolo è obbligatorio");
         }
         
+        // Validazione descrizione
+        if (descrizioneArea.getText().trim().isEmpty()) {
+            errors.add("La descrizione è obbligatoria");
+            showError(erroreDescrizione, "La descrizione è obbligatoria");
+        } else if (descrizioneArea.getText().length() > 500) {
+            errors.add("La descrizione non può superare i 500 caratteri");
+            showError(erroreDescrizione, "La descrizione non può superare i 500 caratteri");
+        }
+        
+        // Validazione combo box
+        if (categoriaCombo.getValue() == null) {
+            errors.add("Seleziona una categoria");
+            showError(erroreCategoria, "Seleziona una categoria");
+        }
+        
+        if (tipoCombo.getValue() == null) {
+            errors.add("Seleziona una tipologia");
+            showError(erroreTipo, "Seleziona una tipologia");
+        }
+        
+        if (origineCombo.getValue() == null) {
+            errors.add("Seleziona l'origine dell'oggetto");
+            showError(erroreOrigine, "Seleziona l'origine dell'oggetto");
+        }
+        
+        // Validazione prezzo finale
+        validatePrezzoField();
+        if (errorePrezzo.isVisible()) {
+            errors.add(errorePrezzo.getText());
+        }
+        
+        if (!errors.isEmpty()) {
+            showAlert("Correggi gli errori prima di procedere:\n- " + String.join("\n- ", errors));
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Crea un annuncio a partire dai dati del form
+     */
+    private Annuncio createAnnuncioFromForm() {
         // Validazione e parsing del prezzo
         Double prezzo = validateAndParsePrice();
         if (prezzo == null) {
@@ -267,55 +545,39 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
     }
 
     /**
-     * Valida i campi obbligatori del form
-     * @return true se tutti i campi sono validi, false altrimenti
-     */
-    private boolean validateRequiredFields() {
-        if (titoloField.getText().isEmpty() ||
-            descrizioneArea.getText().isEmpty() ||
-            categoriaCombo.getValue() == null ||
-            tipoCombo.getValue() == null ||
-            origineCombo.getValue() == null) {
-            
-            showAlert("Compila tutti i campi obbligatori");
-            return false;
-        }
-        return true;
-    }
-
-    /**
      * Valida e parsing del campo prezzo
-     * @return Prezzo parsato o null se invalido
      */
     private Double validateAndParsePrice() {
         String tipologiaSelezionata = tipoCombo.getValue();
+        String prezzoText = prezzoField.getText().trim();
         
-        // Verifica se la tipologia richiede il prezzo
-        if (tipologiaSelezionata.equals("Vendita") || tipologiaSelezionata.equals("Asta")) {
-            if (prezzoField.getText().isEmpty()) {
-                showAlert("Inserisci il prezzo per " + tipologiaSelezionata);
-                return null;
-            }
-            
+        // Se l'utente ha inserito un prezzo, usalo sempre
+        if (!prezzoText.isEmpty()) {
             try {
-                double prezzo = Double.parseDouble(prezzoField.getText().replace(",", "."));
-                if (prezzo <= 0) {
-                    showAlert("Il prezzo deve essere maggiore di zero");
+                double prezzo = Double.parseDouble(prezzoText.replace(",", "."));
+                if (prezzo < 0) {
+                    showAlert("Il prezzo non può essere negativo");
                     return null;
                 }
                 return prezzo;
             } catch (NumberFormatException e) {
-                showAlert("Prezzo non valido");
+                showAlert("Prezzo non valido. Usa il formato: 12,99");
                 return null;
             }
         }
         
-        return 0.0; // Prezzo zero per regalo/scambio
+        // Se non c'è prezzo inserito
+        if (tipologiaSelezionata.equals("Vendita") || tipologiaSelezionata.equals("Asta")) {
+            showAlert("Inserisci il prezzo per " + tipologiaSelezionata);
+            return null;
+        }
+        
+        // Per Scambio e Regalo, prezzo è 0 se non specificato
+        return 0.0;
     }
 
     /**
      * Crea l'oggetto a partire dai dati del form
-     * @return Oggetto creato o null se errore
      */
     private Oggetto createOggetto() {
         try {
@@ -331,16 +593,15 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
             System.out.println("   Origine: " + origine);
             System.out.println("   Image URL: " + pathPerDB);
             
-            // 🔥 MODIFICA: Crea l'oggetto SENZA nome (solo descrizione)
             Oggetto oggettoTemporaneo = new Oggetto(
-            	    0, // ID temporaneo
-            	    "Inserisci il nome qui", // 🔥 Nuovo parametro obbligatorio
-            	    descrizioneArea.getText(),
-            	    Categoria.parseCategoria(categoriaCombo.getValue()),
-            	    pathPerDB,
-            	    file,
-            	    origine
-            	);
+                0, // ID temporaneo
+                titoloField.getText(), // Nome dell'oggetto
+                descrizioneArea.getText(),
+                Categoria.parseCategoria(categoriaCombo.getValue()),
+                pathPerDB,
+                file,
+                origine
+            );
             
             // Salva l'oggetto nel database
             System.out.println("💾 Salvataggio oggetto nel database...");
@@ -355,14 +616,14 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
             
             // Crea l'oggetto finale con ID corretto
             Oggetto oggettoFinale = new Oggetto(
-            	    oggettoId,
-            	    titoloField.getText(), // 🔥 AGGIUNGI QUESTO - il nome dell'oggetto
-            	    descrizioneArea.getText(),
-            	    Categoria.parseCategoria(categoriaCombo.getValue()),
-            	    pathPerDB,
-            	    file,
-            	    origine
-            	);
+                oggettoId,
+                titoloField.getText(),
+                descrizioneArea.getText(),
+                Categoria.parseCategoria(categoriaCombo.getValue()),
+                pathPerDB,
+                file,
+                origine
+            );
             
             // Imposta il file immagine se presente
             if (file != null) {
@@ -381,9 +642,6 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
 
     /**
      * Crea l'annuncio finale
-     * @param oggetto Oggetto associato all'annuncio
-     * @param prezzo Prezzo dell'annuncio
-     * @return Annuncio creato o null se errore
      */
     private Annuncio createAnnuncio(Oggetto oggetto, double prezzo) {
         try {
@@ -398,7 +656,7 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
                 venditoreId
             );
             
-            // ✅ IMPORTANTE: Imposta il titolo SOLO sull'annuncio
+            // Imposta il titolo SOLO sull'annuncio
             annuncio.setTitolo(titoloField.getText().trim());
             
             // Log per debug
@@ -417,8 +675,7 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
     }
 
     /**
-     * Log delle informazioni dell'annuncio creato (per debug)
-     * @param annuncio Annuncio creato
+     * Log delle informazioni dell'annuncio creato
      */
     private void logAnnuncioCreation(Annuncio annuncio) {
         System.out.println("✅ Annuncio creato con successo:");
@@ -431,7 +688,6 @@ public class InserisciAnnuncioDialog extends Dialog<Annuncio> {
 
     /**
      * Mostra un alert di errore
-     * @param message Messaggio da visualizzare
      */
     private void showAlert(String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);

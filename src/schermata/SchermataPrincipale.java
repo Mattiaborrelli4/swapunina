@@ -101,10 +101,19 @@ public class SchermataPrincipale extends BorderPane {
         // Product actions
         productGrid.setOnDetailsAction(this::showProductDetails);
         productGrid.setOnOfferAction(this::handleOffer);
+        
+        // ✅ NUOVO: Collega il callback per l'aggiornamento
+        productGrid.setOnAnnuncioModificato(this::handleAnnuncioModificato);
 
         // Insert ad handler
         topBar.setOnInserisciAnnuncio(this::handleInsertAd);
         topBar.setOnMessages(this::handleMessages);
+    }
+
+    // ✅ NUOVO METODO: Gestisce l'aggiornamento degli annunci modificati
+    private void handleAnnuncioModificato(Annuncio annuncioModificato) {
+        System.out.println("🔄 Annuncio modificato ricevuto, aggiorno la card...");
+        productGrid.aggiornaCardAnnuncio(annuncioModificato);
     }
 
     private void handleInsertAd() {
@@ -300,7 +309,6 @@ public class SchermataPrincipale extends BorderPane {
         return categoriaSelezionata;
     }
     
-
 
     // Metodo handleMessages nella schermata principale
     private void handleMessages() {

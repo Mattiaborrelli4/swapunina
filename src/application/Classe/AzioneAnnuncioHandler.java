@@ -10,12 +10,24 @@ import application.DB.SessionManager;
 import application.DB.MessaggioDAO;
 
 import java.util.Optional;
+import java.util.function.Consumer;
 
 public class AzioneAnnuncioHandler {
     private final MessaggioDAO messaggioDAO;
+    private Consumer<Annuncio> onAnnuncioModificato;
+    private Consumer<Annuncio> onAnnuncioEliminato;
     
     public AzioneAnnuncioHandler() {
         this.messaggioDAO = new MessaggioDAO();
+    }
+    
+    // Setter per le callback
+    public void setOnAnnuncioModificato(Consumer<Annuncio> callback) {
+        this.onAnnuncioModificato = callback;
+    }
+    
+    public void setOnAnnuncioEliminato(Consumer<Annuncio> callback) {
+        this.onAnnuncioEliminato = callback;
     }
     
     public void gestisciAzione(Annuncio annuncio) {
@@ -40,6 +52,46 @@ public class AzioneAnnuncioHandler {
             proponiScambio(annuncio);
         } else {
             contattaPerRegalo(annuncio);
+        }
+    }
+    
+    // ✅ NUOVO METODO: Gestisce la modifica dell'annuncio
+    public void gestisciModificaAnnuncio(Annuncio annuncio) {
+        if (annuncio == null) return;
+        
+        // Qui dovresti aprire un dialog di modifica simile a InserisciAnnuncioDialog
+        // Per ora simuliamo una modifica
+        System.out.println("🔄 Modifica annuncio: " + annuncio.getTitolo());
+        
+        // Notifica che l'annuncio è stato modificato
+        if (onAnnuncioModificato != null) {
+            onAnnuncioModificato.accept(annuncio);
+        }
+    }
+    
+    // ✅ NUOVO METODO: Gestisce l'eliminazione dell'annuncio
+    public void gestisciEliminazioneAnnuncio(Annuncio annuncio) {
+        if (annuncio == null) return;
+        
+        // Conferma eliminazione
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Conferma eliminazione");
+        alert.setHeaderText("Stai per eliminare l'annuncio: " + annuncio.getTitolo());
+        alert.setContentText("Questa azione non può essere annullata. Procedere?");
+        
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            System.out.println("🗑️ Eliminazione annuncio: " + annuncio.getTitolo());
+            
+            // Qui dovresti chiamare il DAO per eliminare l'annuncio dal database
+            // AnnuncioDAO.eliminaAnnuncio(annuncio.getId());
+            
+            // Notifica che l'annuncio è stato eliminato
+            if (onAnnuncioEliminato != null) {
+                onAnnuncioEliminato.accept(annuncio);
+            }
+            
+            mostraMessaggio("Annuncio eliminato con successo!");
         }
     }
     

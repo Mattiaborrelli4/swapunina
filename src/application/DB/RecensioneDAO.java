@@ -8,6 +8,7 @@ import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.math.BigDecimal;
 
 public class RecensioneDAO {
     private static final String TABLE_NAME = "recensione";
@@ -66,7 +67,7 @@ public class RecensioneDAO {
             stmtRecensioni.setInt(1, idAnnuncio);
             ResultSet rsRecensioni = stmtRecensioni.executeQuery();
             
-            List<Float> punteggi = new ArrayList<>();
+            List<BigDecimal> punteggi = new ArrayList<>();
             
             while (rsRecensioni.next()) {
                 // Crea utente acquirente
@@ -94,7 +95,7 @@ public class RecensioneDAO {
                 
                 String commento = rsRecensioni.getString("commento");
                 int punteggio = rsRecensioni.getInt("punteggio");
-                punteggi.add((float) punteggio);
+                punteggi.add(BigDecimal.valueOf(punteggio));
                 
                 // Crea la recensione
                 Recensioni recensione = new Recensioni(acquirente, venditore, annuncio, commento, punteggio);
@@ -115,14 +116,14 @@ public class RecensioneDAO {
             
             if (rsStatistiche.next()) {
                 // Crea le statistiche usando i dati del database
-                statistiche = new StatisticheEconomiche(
+                statistiche = StatisticheEconomiche.daBigDecimal(
                     punteggi,
                     LocalDateTime.now().minusMonths(1).toLocalDate(), // periodo inizio
                     LocalDateTime.now().toLocalDate() // periodo fine
                 );
             } else {
                 // Se non ci sono statistiche, crea statistiche vuote
-                statistiche = new StatisticheEconomiche(
+                statistiche = StatisticheEconomiche.daBigDecimal(
                     new ArrayList<>(),
                     LocalDateTime.now().minusMonths(1).toLocalDate(),
                     LocalDateTime.now().toLocalDate()
@@ -134,7 +135,7 @@ public class RecensioneDAO {
             e.printStackTrace();
             
             // Fallback: ritorna oggetto vuoto in caso di errore
-            statistiche = new StatisticheEconomiche(
+            statistiche = StatisticheEconomiche.daBigDecimal(
                 new ArrayList<>(),
                 LocalDateTime.now().minusMonths(1).toLocalDate(),
                 LocalDateTime.now().toLocalDate()
@@ -226,12 +227,12 @@ public class RecensioneDAO {
                 int punteggioMassimo = rs.getInt("punteggio_massimo");
                 
                 // Crea una lista di punteggi fittizia per il costruttore
-                List<Float> punteggi = new ArrayList<>();
+                List<BigDecimal> punteggi = new ArrayList<>();
                 for (int i = 0; i < numeroRecensioni; i++) {
-                    punteggi.add((float) punteggioMedio);
+                    punteggi.add(BigDecimal.valueOf(punteggioMedio));
                 }
                 
-                return new StatisticheEconomiche(
+                return StatisticheEconomiche.daBigDecimal(
                     punteggi,
                     LocalDateTime.now().minusMonths(1).toLocalDate(),
                     LocalDateTime.now().toLocalDate()
@@ -243,7 +244,7 @@ public class RecensioneDAO {
         }
         
         // Ritorna statistiche vuote in caso di errore o nessun dato
-        return new StatisticheEconomiche(
+        return StatisticheEconomiche.daBigDecimal(
             new ArrayList<>(),
             LocalDateTime.now().minusMonths(1).toLocalDate(),
             LocalDateTime.now().toLocalDate()
@@ -398,7 +399,7 @@ public class RecensioneDAO {
         
         // Metodo helper per ottenere il punteggio medio
         public double getPunteggioMedio() {
-            return statistiche.getValoreMedio();
+            return statistiche.getValoreMedio().doubleValue();
         }
         
         // Metodo helper per ottenere il numero di recensioni

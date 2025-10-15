@@ -22,6 +22,7 @@ public class ProductGrid {
     private Consumer<Annuncio> onDetailsAction;
     private Consumer<Annuncio> onOfferAction;
     private Consumer<Annuncio> onFavoriteAction;
+    private Consumer<Annuncio> onAnnuncioModificato; // ✅ NUOVO: Callback per annuncio modificato
 
     /**
      * Crea la struttura principale della griglia dei prodotti.
@@ -110,21 +111,52 @@ public class ProductGrid {
             productGrid.getChildren().clear();
 
             for (Annuncio annuncio : annunci) {
-            	String nomeOggetto = annuncio.getOggetto() != null
-            	        ? annuncio.getOggettoPrincipale().getNome()
-            	        : "Oggetto sconosciuto";
+                String nomeOggetto = annuncio.getOggetto() != null
+                        ? annuncio.getOggettoPrincipale().getNome()
+                        : "Oggetto sconosciuto";
                 System.out.println("[DEBUG] Aggiungo card per annuncio: " + nomeOggetto);
 
                 ProductCard card = new ProductCard(annuncio);
                 card.setOnDetailsAction(onDetailsAction);
                 card.setOnOfferAction(onOfferAction);
                 card.setOnFavoriteAction(onFavoriteAction);
+                card.setOnAnnuncioModificato(onAnnuncioModificato); // ✅ NUOVO: Imposta callback modifica
 
                 productGrid.getChildren().add(card);
             }
 
             container.getChildren().setAll(productGrid);
             System.out.println("[DEBUG] Numero totale card visualizzate: " + productGrid.getChildren().size());
+        });
+    }
+
+    /**
+     * ✅ NUOVO METODO: Ricrea una card specifica per un annuncio modificato
+     */
+    public void aggiornaCardAnnuncio(Annuncio annuncioModificato) {
+        Platform.runLater(() -> {
+            System.out.println("[DEBUG] Aggiornamento card per annuncio ID: " + annuncioModificato.getId());
+            
+            // Cerca la card esistente e la sostituisce
+            for (int i = 0; i < productGrid.getChildren().size(); i++) {
+                javafx.scene.Node node = productGrid.getChildren().get(i);
+                if (node instanceof ProductCard) {
+                    ProductCard oldCard = (ProductCard) node;
+                    if (oldCard.getAnnuncioId() == annuncioModificato.getId()) {
+                        // Crea una nuova card con l'annuncio aggiornato
+                        ProductCard newCard = new ProductCard(annuncioModificato);
+                        newCard.setOnDetailsAction(onDetailsAction);
+                        newCard.setOnOfferAction(onOfferAction);
+                        newCard.setOnFavoriteAction(onFavoriteAction);
+                        newCard.setOnAnnuncioModificato(onAnnuncioModificato);
+                        
+                        // Sostituisce la vecchia card con quella nuova
+                        productGrid.getChildren().set(i, newCard);
+                        System.out.println("[DEBUG] Card aggiornata per annuncio ID: " + annuncioModificato.getId());
+                        break;
+                    }
+                }
+            }
         });
     }
 
@@ -177,5 +209,12 @@ public class ProductGrid {
 
     public void setOnFavoriteAction(Consumer<Annuncio> onFavoriteAction) {
         this.onFavoriteAction = onFavoriteAction;
+    }
+
+    /**
+     * ✅ NUOVO: Setter per il callback di annuncio modificato
+     */
+    public void setOnAnnuncioModificato(Consumer<Annuncio> onAnnuncioModificato) {
+        this.onAnnuncioModificato = onAnnuncioModificato;
     }
 }
