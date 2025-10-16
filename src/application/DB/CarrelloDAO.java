@@ -21,7 +21,7 @@ public class CarrelloDAO {
                     "annuncio_id INTEGER NOT NULL REFERENCES annuncio(id) ON DELETE CASCADE, " +
                     "quantita INTEGER NOT NULL DEFAULT 1, " +
                     "data_aggiunta TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
-                    "UNIQUE(utente_id, annuncio_id)" + // Evita duplicati
+                    "UNIQUE(utente_id, annuncio_id)" +
                     ")";
             
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -38,20 +38,25 @@ public class CarrelloDAO {
      * Aggiunge un annuncio al carrello dell'utente
      */
     public boolean aggiungiAlCarrello(int utenteId, int annuncioId) {
-        String sql = "INSERT INTO carrello (utente_id, annuncio_id, quantita, data_aggiunta) " +
-                     "VALUES (?, ?, 1, CURRENT_TIMESTAMP) " +
-                     "ON CONFLICT (utente_id, annuncio_id) " +
-                     "DO UPDATE SET quantita = carrello.quantita + 1, " +
-                     "data_aggiunta = CURRENT_TIMESTAMP";
+        // ✅ MIGLIORATO: Query più efficiente
+        String sql = "INSERT INTO " + TABLE_NAME + " (utente_id, annuncio_id, quantita) " +
+                    "VALUES (?, ?, 1) " +
+                    "ON CONFLICT (utente_id, annuncio_id) " +
+                    "DO UPDATE SET quantita = " + TABLE_NAME + ".quantita + 1, " +
+                    "data_aggiunta = CURRENT_TIMESTAMP " +
+                    "RETURNING id";
         
-        try (Connection conn = ConnessioneDB.getConnessione(); // CORRETTO: usa ConnessioneDB
+        try (Connection conn = ConnessioneDB.getConnessione();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
             pstmt.setInt(1, utenteId);
             pstmt.setInt(2, annuncioId);
             
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0;
+            try (ResultSet rs = pstmt.executeQuery()) {
+                boolean success = rs.next();
+                System.out.println("✅ Aggiunto al carrello - Utente: " + utenteId + ", Annuncio: " + annuncioId);
+                return success;
+            }
             
         } catch (SQLException e) {
             System.err.println("❌ Errore SQL nell'aggiunta al carrello: " + e.getMessage());
@@ -73,10 +78,16 @@ public class CarrelloDAO {
             stmt.setInt(2, annuncioId);
             
             int rowsAffected = stmt.executeUpdate();
-            if (rowsAffected > 0) {
-                System.out.println("✅ Annuncio " + annuncioId + " rimosso dal carrello per utente " + utenteId);
-                return true;
+            boolean success = rowsAffected > 0;
+            
+            if (success) {
+                System.out.println("✅ Rimosso dal carrello - Utente: " + utenteId + ", Annuncio: " + annuncioId);
+            } else {
+                System.out.println("⚠️ Nessun articolo trovato da rimuovere - Utente: " + utenteId + ", Annuncio: " + annuncioId);
             }
+            
+            return success;
+            
         } catch (SQLException e) {
             System.err.println("❌ Errore nella rimozione dal carrello: " + e.getMessage());
             e.printStackTrace();
@@ -85,15 +96,15 @@ public class CarrelloDAO {
     }
 
     /**
-     * Recupera tutti gli elementi nel carrello di un utente (versione semplificata e sicura)
+     * ✅ CORRETTO: Recupera tutti gli elementi nel carrello di un utente con VENDITORE_ID
      */
     public List<CarrelloItem> getCarrelloPerUtente(int utenteId) {
         List<CarrelloItem> carrelloItems = new ArrayList<>();
         
-        // Query semplificata con solo i dati essenziali che sappiamo esistono in Annuncio
+        // ✅ CORREZIONE: Aggiunto a.venditore_id nella query
         String sql = "SELECT c.id AS carrello_id, c.quantita, c.data_aggiunta, " +
-                    "a.id AS annuncio_id, a.titolo, a.prezzo, " +
-                    "u.nome AS venditore_nome " +
+                    "a.id AS annuncio_id, a.titolo, a.prezzo, a.venditore_id, " + // ✅ AGGIUNTO venditore_id
+                    "u.nome AS venditore_nome, u.cognome AS venditore_cognome " +
                     "FROM " + TABLE_NAME + " c " +
                     "JOIN annuncio a ON c.annuncio_id = a.id " +
                     "JOIN utente u ON a.venditore_id = u.id " +
@@ -107,20 +118,9 @@ public class CarrelloDAO {
             
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    // Crea un Annuncio usando solo metodi che sappiamo esistono
-                    Annuncio annuncio = new Annuncio();
-                    annuncio.setId(rs.getInt("annuncio_id"));
-                    annuncio.setTitolo(rs.getString("titolo"));
-                    annuncio.setPrezzo(rs.getDouble("prezzo"));
+                    // ✅ CORREZIONE: Crea Annuncio con venditore_id
+                    Annuncio annuncio = creaAnnuncioCompleto(rs);
                     
-                    // Usa setNomeVenditore se esiste, altrimenti ignora
-                    try {
-                        annuncio.setNomeVenditore(rs.getString("venditore_nome"));
-                    } catch (Exception e) {
-                        System.out.println("⚠️ setNomeVenditore non disponibile in Annuncio");
-                    }
-                    
-                    // Crea l'item del carrello
                     CarrelloItem item = new CarrelloItem(
                         rs.getInt("carrello_id"),
                         annuncio,
@@ -131,10 +131,11 @@ public class CarrelloDAO {
                     carrelloItems.add(item);
                 }
             }
+            
             System.out.println("✅ Caricati " + carrelloItems.size() + " elementi nel carrello per utente " + utenteId);
             
         } catch (SQLException e) {
-            System.err.println("❌ Errore nel recupero del carrello: " + e.getMessage());
+            System.err.println("❌ Errore nel recupero del carrello per utente " + utenteId + ": " + e.getMessage());
             e.printStackTrace();
         }
         
@@ -142,60 +143,34 @@ public class CarrelloDAO {
     }
 
     /**
-     * Recupera gli elementi del carrello con gestione sicura degli errori
+     * ✅ NUOVO: Crea un Annuncio completo con tutti i campi necessari
      */
-    public List<CarrelloItem> getCarrelloSicuroPerUtente(int utenteId) {
-        List<CarrelloItem> carrelloItems = new ArrayList<>();
-        
-        String sql = "SELECT c.id, c.quantita, c.data_aggiunta, " +
-                    "a.id AS annuncio_id, a.titolo, a.prezzo " +
-                    "FROM " + TABLE_NAME + " c " +
-                    "JOIN annuncio a ON c.annuncio_id = a.id " +
-                    "WHERE c.utente_id = ? " +
-                    "ORDER BY c.data_aggiunta DESC";
-    
-        try (Connection conn = ConnessioneDB.getConnessione();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setInt(1, utenteId);
-            
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    // Crea Annuncio con solo i campi base che sicuramente esistono
-                    Annuncio annuncio = creaAnnuncioBase(rs);
-                    
-                    CarrelloItem item = new CarrelloItem(
-                        rs.getInt("id"),
-                        annuncio,
-                        rs.getInt("quantita"),
-                        rs.getTimestamp("data_aggiunta").toLocalDateTime()
-                    );
-                    
-                    carrelloItems.add(item);
-                }
-            }
-            
-        } catch (SQLException e) {
-            System.err.println("❌ Errore nel recupero del carrello: " + e.getMessage());
-            e.printStackTrace();
-        }
-        
-        return carrelloItems;
-    }
-
-    /**
-     * Crea un Annuncio solo con i campi base che sicuramente esistono
-     */
-    private Annuncio creaAnnuncioBase(ResultSet rs) throws SQLException {
+    private Annuncio creaAnnuncioCompleto(ResultSet rs) throws SQLException {
         Annuncio annuncio = new Annuncio();
         
-        // Solo i campi che sappiamo per certo esistono in Annuncio
+        // Campi base
         annuncio.setId(rs.getInt("annuncio_id"));
         annuncio.setTitolo(rs.getString("titolo"));
         annuncio.setPrezzo(rs.getDouble("prezzo"));
         
+        // ✅ AGGIUNTO: Imposta venditore_id (CRUCIALE per il checkout)
+        annuncio.setVenditoreId(rs.getInt("venditore_id"));
+        
+        // Campi opzionali (se esistono i setter)
+        try {
+            annuncio.setNomeVenditore(rs.getString("venditore_nome") + " " + rs.getString("venditore_cognome"));
+        } catch (Exception e) {
+            // Ignora se il setter non esiste
+            System.out.println("⚠️ setNomeVenditore non disponibile in Annuncio");
+        }
+        
         return annuncio;
     }
+
+    /**
+     * ❌ RIMOSSO: getCarrelloSicuroPerUtente - metodo duplicato che causa confusione
+     * Usiamo solo getCarrelloPerUtente che è più completo
+     */
 
     /**
      * Aggiorna la quantità di un item nel carrello
@@ -214,7 +189,13 @@ public class CarrelloDAO {
             stmt.setInt(2, carrelloId);
             
             int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0;
+            boolean success = rowsAffected > 0;
+            
+            if (success) {
+                System.out.println("✅ Aggiornata quantità - CarrelloID: " + carrelloId + ", Nuova quantità: " + nuovaQuantita);
+            }
+            
+            return success;
             
         } catch (SQLException e) {
             System.err.println("❌ Errore nell'aggiornamento della quantità: " + e.getMessage());
@@ -235,7 +216,13 @@ public class CarrelloDAO {
             stmt.setInt(1, carrelloId);
             
             int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0;
+            boolean success = rowsAffected > 0;
+            
+            if (success) {
+                System.out.println("✅ Rimosso item carrello - ID: " + carrelloId);
+            }
+            
+            return success;
             
         } catch (SQLException e) {
             System.err.println("❌ Errore nella rimozione dell'item: " + e.getMessage());
@@ -256,8 +243,10 @@ public class CarrelloDAO {
             stmt.setInt(1, utenteId);
             
             int rowsAffected = stmt.executeUpdate();
+            boolean success = rowsAffected >= 0; // 0 è successo se il carrello era vuoto
+            
             System.out.println("✅ Svuotato carrello per utente " + utenteId + ", rimossi " + rowsAffected + " items");
-            return rowsAffected >= 0;
+            return success;
             
         } catch (SQLException e) {
             System.err.println("❌ Errore nello svuotamento del carrello: " + e.getMessage());
@@ -279,7 +268,9 @@ public class CarrelloDAO {
             
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getInt(1);
+                    int count = rs.getInt(1);
+                    System.out.println("✅ Elementi nel carrello per utente " + utenteId + ": " + count);
+                    return count;
                 }
             }
         } catch (SQLException e) {
@@ -303,7 +294,10 @@ public class CarrelloDAO {
             
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getInt(1) > 0;
+                    boolean presente = rs.getInt(1) > 0;
+                    System.out.println("✅ Verifica carrello - Utente: " + utenteId + 
+                                     ", Annuncio: " + annuncioId + ", Presente: " + presente);
+                    return presente;
                 }
             }
         } catch (SQLException e) {
@@ -329,7 +323,9 @@ public class CarrelloDAO {
             
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getDouble("totale");
+                    double totale = rs.getDouble("totale");
+                    System.out.println("✅ Totale carrello per utente " + utenteId + ": €" + totale);
+                    return totale;
                 }
             }
         } catch (SQLException e) {
@@ -337,5 +333,22 @@ public class CarrelloDAO {
             e.printStackTrace();
         }
         return 0.0;
+    }
+
+    /**
+     * ✅ AGGIUNTO: Metodo per debug - stampa contenuto carrello
+     */
+    public void debugCarrello(int utenteId) {
+        System.out.println("=== DEBUG CARRELLO Utente " + utenteId + " ===");
+        List<CarrelloItem> items = getCarrelloPerUtente(utenteId);
+        for (CarrelloItem item : items) {
+            Annuncio annuncio = item.getAnnuncio();
+            System.out.println("• " + annuncio.getTitolo() + 
+                             " | Prezzo: €" + annuncio.getPrezzo() +
+                             " | Venditore ID: " + annuncio.getVenditoreId() +
+                             " | Quantità: " + item.getQuantita());
+        }
+        System.out.println("Totale: €" + getPrezzoTotaleCarrello(utenteId));
+        System.out.println("=================================");
     }
 }

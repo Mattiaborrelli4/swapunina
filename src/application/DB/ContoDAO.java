@@ -48,6 +48,17 @@ public class ContoDAO {
      * Crea un conto per un utente se non esiste già
      */
     public Conto creaContoSeMancante(int utenteId) {
+        if (utenteId <= 0) {
+            System.err.println("❌ ID utente non valido per creazione conto: " + utenteId);
+            return null;
+        }
+        
+        // Verifica se l'utente esiste nel database
+        if (!utenteEsiste(utenteId)) {
+            System.err.println("❌ Utente non trovato nel database: " + utenteId);
+            return null;
+        }
+        
         Conto conto = getContoByUtenteId(utenteId);
         if (conto == null) {
             return creaConto(utenteId);
@@ -55,10 +66,47 @@ public class ContoDAO {
         return conto;
     }
 
+    
+    /**
+     * Verifica se un utente esiste nel database
+     */
+    private boolean utenteEsiste(int utenteId) {
+        String sql = "SELECT COUNT(*) FROM utente WHERE id = ?";
+        
+        try (Connection conn = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, utenteId);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("❌ Errore nella verifica esistenza utente: " + e.getMessage());
+        }
+        return false;
+    }
+    
+    
+
     /**
      * Crea un nuovo conto per un utente
      */
     public Conto creaConto(int utenteId) {
+        // ✅ CONTROLLO: Verifica che l'ID utente sia valido
+        if (utenteId <= 0) {
+            System.err.println("❌ ID utente non valido: " + utenteId);
+            return null;
+        }
+        
+        // Verifica che l'utente esista
+        if (!utenteEsiste(utenteId)) {
+            System.err.println("❌ Impossibile creare conto: utente " + utenteId + " non esiste");
+            return null;
+        }
+        
         String sql = "INSERT INTO " + TABLE_NAME + " (utente_id, saldo) VALUES (?, 0.0) RETURNING id";
         
         try (Connection conn = ConnessioneDB.getConnessione();
@@ -70,7 +118,6 @@ public class ContoDAO {
                 if (rs.next()) {
                     Conto conto = new Conto(utenteId);
                     conto.setId(rs.getInt("id"));
-                    System.out.println("✅ Conto creato per utente: " + utenteId);
                     return conto;
                 }
             }
@@ -266,6 +313,18 @@ public class ContoDAO {
      * Trasferisce fondi da acquirente a venditore
      */
     public boolean trasferisciFondi(int acquirenteId, int venditoreId, BigDecimal importo, String descrizione) {
+        // ✅ CONTROLLO: Verifica che gli ID siano validi
+        if (acquirenteId <= 0 || venditoreId <= 0) {
+            System.err.println("❌ ID utenti non validi per trasferimento: acquirente=" + acquirenteId + ", venditore=" + venditoreId);
+            return false;
+        }
+        
+        // ✅ CONTROLLO: Verifica che l'importo sia positivo
+        if (importo.compareTo(BigDecimal.ZERO) <= 0) {
+            System.err.println("❌ Importo non valido per trasferimento: " + importo);
+            return false;
+        }
+        
         try (Connection conn = ConnessioneDB.getConnessione()) {
             conn.setAutoCommit(false);
             
@@ -279,6 +338,11 @@ public class ContoDAO {
                 
                 // Assicurati che il venditore abbia un conto
                 Conto contoVenditore = creaContoSeMancante(venditoreId);
+                if (contoVenditore == null) {
+                    System.err.println("❌ Impossibile creare conto per venditore: " + venditoreId);
+                    conn.rollback();
+                    return false;
+                }
                 
                 // Addebita all'acquirente
                 boolean successAcquisto = contoAcquirente.effettuaAcquisto(importo, descrizione);
@@ -300,7 +364,6 @@ public class ContoDAO {
                 
                 if (successUpdate1 && successUpdate2 && successMovimento1 && successMovimento2) {
                     conn.commit();
-                    System.out.println("✅ Trasferimento effettuato: " + importo + " da " + acquirenteId + " a " + venditoreId);
                     return true;
                 } else {
                     conn.rollback();
@@ -315,7 +378,7 @@ public class ContoDAO {
             }
             
         } catch (SQLException e) {
-            System.err.println("❌ Errore durante il trasferimento fondi");
+            System.err.println("❌ Errore durante il trasferimento fondi: " + e.getMessage());
             e.printStackTrace();
         }
         return false;

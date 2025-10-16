@@ -1,64 +1,98 @@
 package schermata.button;
 
-import application.Main;
+import application.Classe.Annuncio;
+import schermata.button.CarrelloManager;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
+import javafx.scene.text.Text;
 
-public class CarrelloDialog extends Stage {
+import java.util.List;
 
+public class CarrelloDialog extends Dialog<Void> {
+    
+    private final CarrelloManager carrelloManager;
     private TableView<CarrelloManager.CarrelloItem> tableView;
     private ObservableList<CarrelloManager.CarrelloItem> carrelloItems;
-    private Label totaleLabel;
+    private Text txtTotale;
+    private Text txtNumeroArticoli;
+    private Text txtSaldo;
 
     public CarrelloDialog() {
-        initModality(Modality.APPLICATION_MODAL);
-        setTitle("Carrello - Marketplace Universitario");
+        this.carrelloManager = CarrelloManager.getInstance();
         
-        // Inizializza la TableView
+        setTitle("Carrello Acquisti");
+        setHeaderText("I tuoi articoli nel carrello");
+        
+        // Pulsante di chiusura
+        ButtonType chiudiButtonType = new ButtonType("Chiudi", ButtonBar.ButtonData.CANCEL_CLOSE);
+        getDialogPane().getButtonTypes().addAll(chiudiButtonType);
+        
+        // Creazione interfaccia
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        
+        // Tabella carrello
         tableView = new TableView<>();
-        carrelloItems = FXCollections.observableArrayList();
-        tableView.setItems(carrelloItems);
+        setupTable();
         
-        // Creazione colonne
-        TableColumn<CarrelloManager.CarrelloItem, String> titoloCol = new TableColumn<>("Prodotto");
-        titoloCol.setCellValueFactory(new PropertyValueFactory<>("titolo"));
-        titoloCol.setPrefWidth(200);
+        // Pulsanti
+        HBox pulsantiBox = createPulsantiBox();
         
-        TableColumn<CarrelloManager.CarrelloItem, Double> prezzoCol = new TableColumn<>("Prezzo");
-        prezzoCol.setCellValueFactory(new PropertyValueFactory<>("prezzo"));
-        prezzoCol.setPrefWidth(100);
-        prezzoCol.setCellFactory(col -> new TableCell<CarrelloManager.CarrelloItem, Double>() {
+        // Informazioni totali
+        HBox infoBox = createInfoBox();
+        
+        // Sezione checkout
+        HBox checkoutBox = createCheckoutSection();
+        
+        content.getChildren().addAll(tableView, pulsantiBox, infoBox, checkoutBox);
+        getDialogPane().setContent(content);
+        
+        // Carica dati
+        aggiornaDatiCarrello();
+    }
+
+    private void setupTable() {
+        // Colonna titolo
+        TableColumn<CarrelloManager.CarrelloItem, String> colonnaTitolo = new TableColumn<>("Articolo");
+        colonnaTitolo.setCellValueFactory(new PropertyValueFactory<>("titolo"));
+        colonnaTitolo.setPrefWidth(250);
+        
+        // Colonna prezzo
+        TableColumn<CarrelloManager.CarrelloItem, Double> colonnaPrezzo = new TableColumn<>("Prezzo");
+        colonnaPrezzo.setCellValueFactory(new PropertyValueFactory<>("prezzo"));
+        colonnaPrezzo.setPrefWidth(100);
+        colonnaPrezzo.setCellFactory(tc -> new TableCell<CarrelloManager.CarrelloItem, Double>() {
             @Override
-            protected void updateItem(Double item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
+            protected void updateItem(Double prezzo, boolean empty) {
+                super.updateItem(prezzo, empty);
+                if (empty || prezzo == null) {
                     setText(null);
                 } else {
-                    setText(String.format("€%.2f", item));
+                    setText(String.format("€%.2f", prezzo));
                 }
             }
         });
         
-        TableColumn<CarrelloManager.CarrelloItem, Integer> quantitaCol = new TableColumn<>("Quantità");
-        quantitaCol.setCellValueFactory(new PropertyValueFactory<>("quantita"));
-        quantitaCol.setPrefWidth(80);
+        // Colonna quantità
+        TableColumn<CarrelloManager.CarrelloItem, Integer> colonnaQuantita = new TableColumn<>("Quantità");
+        colonnaQuantita.setCellValueFactory(new PropertyValueFactory<>("quantita"));
+        colonnaQuantita.setPrefWidth(80);
         
-        TableColumn<CarrelloManager.CarrelloItem, Double> subtotaleCol = new TableColumn<>("Subtotale");
-        subtotaleCol.setCellFactory(col -> new TableCell<CarrelloManager.CarrelloItem, Double>() {
+        // Colonna subtotale
+        TableColumn<CarrelloManager.CarrelloItem, Double> colonnaSubtotale = new TableColumn<>("Subtotale");
+        colonnaSubtotale.setPrefWidth(100);
+        colonnaSubtotale.setCellFactory(tc -> new TableCell<CarrelloManager.CarrelloItem, Double>() {
             @Override
             protected void updateItem(Double item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty) {
+                if (empty || item == null) {
                     setText(null);
                 } else {
                     CarrelloManager.CarrelloItem carrelloItem = getTableView().getItems().get(getIndex());
@@ -67,158 +101,111 @@ public class CarrelloDialog extends Stage {
                 }
             }
         });
-        subtotaleCol.setPrefWidth(100);
         
-        TableColumn<CarrelloManager.CarrelloItem, Void> azioniCol = new TableColumn<>("Azioni");
-        azioniCol.setPrefWidth(100);
-        azioniCol.setCellFactory(col -> new TableCell<CarrelloManager.CarrelloItem, Void>() {
-            private final Button rimuoviBtn = new Button("Rimuovi");
-            
-            {
-                rimuoviBtn.setStyle("-fx-background-color: #ff4444; -fx-text-fill: white;");
-                rimuoviBtn.setOnAction(e -> {
-                    CarrelloManager.CarrelloItem item = getTableView().getItems().get(getIndex());
-                    if (item != null) {
-                        CarrelloManager.getInstance().rimuoviDalCarrello(item.getAnnuncioId());
-                        carrelloItems.remove(item);
-                        aggiornaTotale();
-                        mostraAlert("Rimosso", "Articolo rimosso dal carrello!");
-                    }
-                });
-            }
-            
-            @Override
-            protected void updateItem(Void item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty) {
-                    setGraphic(null);
-                } else {
-                    setGraphic(rimuoviBtn);
-                }
-            }
-        });
-        
-        tableView.getColumns().addAll(titoloCol, prezzoCol, quantitaCol, subtotaleCol, azioniCol);
-        
-        // Label per il totale
-        totaleLabel = new Label("Totale: €0.00");
-        totaleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #2e7d32;");
-        
-        // Pulsanti
-        Button chiudiBtn = new Button("Chiudi");
-        chiudiBtn.setStyle("-fx-background-color: #757575; -fx-text-fill: white;");
-        chiudiBtn.setOnAction(e -> close());
+        tableView.getColumns().addAll(colonnaTitolo, colonnaPrezzo, colonnaQuantita, colonnaSubtotale);
+        tableView.setPlaceholder(new Label("Il carrello è vuoto"));
+    }
+
+    private HBox createPulsantiBox() {
+        Button rimuoviBtn = new Button("Rimuovi Selezionato");
+        rimuoviBtn.setOnAction(e -> rimuoviArticoloSelezionato());
         
         Button svuotaBtn = new Button("Svuota Carrello");
-        svuotaBtn.setStyle("-fx-background-color: #ff9800; -fx-text-fill: white;");
-        svuotaBtn.setOnAction(e -> {
-            if (!carrelloItems.isEmpty()) {
-                Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
-                confirmAlert.setTitle("Svuota Carrello");
-                confirmAlert.setHeaderText("Sei sicuro di voler svuotare il carrello?");
-                confirmAlert.setContentText("Questa operazione non può essere annullata.");
-                
-                if (confirmAlert.showAndWait().get() == ButtonType.OK) {
-                    CarrelloManager.getInstance().svuotaCarrello();
-                    carrelloItems.clear();
-                    aggiornaTotale();
-                    mostraAlert("Carrello svuotato", "Il carrello è stato svuotato con successo!");
-                }
-            } else {
-                mostraAlert("Carrello vuoto", "Il carrello è già vuoto!");
-            }
-        });
+        svuotaBtn.setOnAction(e -> svuotaCarrello());
         
-        Button checkoutBtn = new Button("Procedi all'acquisto");
-        checkoutBtn.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;");
+        HBox pulsantiBox = new HBox(10, rimuoviBtn, svuotaBtn);
+        pulsantiBox.setPadding(new Insets(10, 0, 0, 0));
+        return pulsantiBox;
+    }
+
+    private HBox createInfoBox() {
+        txtNumeroArticoli = new Text();
+        txtTotale = new Text();
+        txtSaldo = new Text();
+        
+        VBox infoBox = new VBox(5, 
+            new Label("Riepilogo:"),
+            txtNumeroArticoli,
+            txtTotale,
+            txtSaldo
+        );
+        infoBox.setStyle("-fx-border-color: #cccccc; -fx-border-width: 1; -fx-padding: 10;");
+        
+        HBox container = new HBox(infoBox);
+        container.setPadding(new Insets(10, 0, 0, 0));
+        HBox.setHgrow(container, Priority.ALWAYS);
+        return container;
+    }
+
+    private HBox createCheckoutSection() {
+        Button checkoutBtn = new Button("🚀 Checkout & Acquista");
+        checkoutBtn.setStyle(
+            "-fx-background-color: #27ae60; " +
+            "-fx-text-fill: white; " +
+            "-fx-font-weight: bold; " +
+            "-fx-font-size: 14px; " +
+            "-fx-padding: 10px 20px;"
+        );
         checkoutBtn.setOnAction(e -> {
-            if (carrelloItems.isEmpty()) {
-                mostraAlert("Carrello vuoto", "Il carrello è vuoto! Aggiungi alcuni articoli prima di procedere.");
-            } else {
-                mostraAlert("Checkout", "Funzionalità di checkout in sviluppo!\nTotale: " + totaleLabel.getText());
-                // Qui puoi implementare la logica di checkout
+            CheckoutDialog checkoutDialog = new CheckoutDialog();
+            Boolean success = checkoutDialog.showAndWait().orElse(false);
+            
+            if (success != null && success) {
+                // Ricarica il carrello vuoto
+                aggiornaDatiCarrello();
+                mostraMessaggioSuccesso("Acquisto completato! I fondi sono stati trasferiti ai venditori.");
             }
         });
         
-        HBox pulsantiBox = new HBox(10, chiudiBtn, svuotaBtn, checkoutBtn);
-        pulsantiBox.setAlignment(Pos.CENTER_RIGHT);
-        pulsantiBox.setPadding(new Insets(15, 0, 0, 0));
+        HBox checkoutBox = new HBox(checkoutBtn);
+        checkoutBox.setAlignment(Pos.CENTER_RIGHT);
+        checkoutBox.setPadding(new Insets(15, 0, 0, 0));
         
-        // Header con titolo e contatore articoli
-        Label titoloLabel = new Label("Il tuo Carrello");
-        titoloLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #333;");
-        
-        Label contatoreLabel = new Label();
-        contatoreLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #666;");
-        updateContatoreLabel(contatoreLabel);
-        
-        VBox headerBox = new VBox(5, titoloLabel, contatoreLabel);
-        headerBox.setPadding(new Insets(0, 0, 10, 0));
-        
-        // Layout principale
-        VBox contenuto = new VBox(10, headerBox, tableView, totaleLabel, pulsantiBox);
-        contenuto.setPadding(new Insets(20));
-        contenuto.setPrefSize(700, 500);
-        
-        Scene scene = new Scene(contenuto);
-        setScene(scene);
-        
-        // Carica i dati del carrello
-        caricaCarrello();
+        return checkoutBox;
     }
-    
-    private void caricaCarrello() {
-        carrelloItems.clear();
-        try {
-            java.util.List<CarrelloManager.CarrelloItem> items = CarrelloManager.getInstance().getCarrelloItems();
-            if (items != null && !items.isEmpty()) {
-                carrelloItems.addAll(items);
-                System.out.println("✅ Caricati " + items.size() + " articoli nel carrello");
-            } else {
-                System.out.println("ℹ️  Carrello vuoto");
-            }
-        } catch (Exception e) {
-            System.err.println("❌ Errore nel caricamento del carrello: " + e.getMessage());
-            mostraAlert("Errore", "Impossibile caricare il carrello: " + e.getMessage());
-        }
-        aggiornaTotale();
-    }
-    
-    private void aggiornaTotale() {
-        double totale = 0.0;
-        for (CarrelloManager.CarrelloItem item : carrelloItems) {
-            totale += item.getPrezzo() * item.getQuantita();
-        }
-        totaleLabel.setText(String.format("Totale: €%.2f", totale));
+
+    private void aggiornaDatiCarrello() {
+        List<CarrelloManager.CarrelloItem> items = carrelloManager.getCarrelloItems();
+        carrelloItems = FXCollections.observableArrayList(items);
+        tableView.setItems(carrelloItems);
         
-        // Aggiorna anche il contatore
-        Label contatoreLabel = (Label) ((VBox) ((VBox) getScene().getRoot()).getChildren().get(0)).getChildren().get(1);
-        updateContatoreLabel(contatoreLabel);
+        // Aggiorna i totali
+        int numeroArticoli = carrelloManager.getNumeroArticoli();
+        double totale = carrelloManager.getTotale();
+        
+        txtNumeroArticoli.setText("Numero articoli: " + numeroArticoli);
+        txtTotale.setText("Totale: €" + String.format("%.2f", totale));
+        txtSaldo.setText("Saldo attuale: " + carrelloManager.getSaldoFormattato());
     }
-    
-    private void updateContatoreLabel(Label contatoreLabel) {
-        int numArticoli = carrelloItems.size();
-        if (numArticoli == 0) {
-            contatoreLabel.setText("Nessun articolo nel carrello");
-        } else if (numArticoli == 1) {
-            contatoreLabel.setText("1 articolo nel carrello");
+
+    private void rimuoviArticoloSelezionato() {
+        CarrelloManager.CarrelloItem selected = tableView.getSelectionModel().getSelectedItem();
+        if (selected != null) {
+            carrelloManager.rimuoviDalCarrello(selected.getAnnuncioId());
+            aggiornaDatiCarrello();
         } else {
-            contatoreLabel.setText(numArticoli + " articoli nel carrello");
+            mostraMessaggioErrore("Nessun articolo selezionato");
         }
     }
-    
-    private void mostraAlert(String titolo, String messaggio) {
+
+    private void svuotaCarrello() {
+        carrelloManager.svuotaCarrello();
+        aggiornaDatiCarrello();
+    }
+
+    private void mostraMessaggioSuccesso(String messaggio) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(titolo);
+        alert.setTitle("Successo");
         alert.setHeaderText(null);
         alert.setContentText(messaggio);
         alert.showAndWait();
     }
-    
-    /**
-     * Metodo per aggiornare il carrello quando vengono apportate modifiche esterne
-     */
-    public void aggiornaCarrello() {
-        caricaCarrello();
+
+    private void mostraMessaggioErrore(String messaggio) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Errore");
+        alert.setHeaderText(null);
+        alert.setContentText(messaggio);
+        alert.showAndWait();
     }
 }

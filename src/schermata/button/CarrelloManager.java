@@ -7,7 +7,9 @@ import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import application.Classe.Conto;
 import application.DB.ContoDAO;
+import application.DB.AnnuncioDAO;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,20 +17,31 @@ public class CarrelloManager {
     private static CarrelloManager instance;
     private CarrelloDAO carrelloDAO;
     private ContoDAO contoDAO;
-    private int utenteId;
     
-    // CLASSE INTERNA CarrelloItem
+    // CLASSE INTERNA CarrelloItem con proprietà selected
     public static class CarrelloItem {
         private int annuncioId;
         private String titolo;
         private double prezzo;
         private int quantita;
+        private Annuncio annuncio;
+        private boolean selected; // ✅ NUOVO: stato selezione
         
         public CarrelloItem(int annuncioId, String titolo, double prezzo, int quantita) {
             this.annuncioId = annuncioId;
             this.titolo = titolo;
             this.prezzo = prezzo;
             this.quantita = quantita;
+            this.selected = true; // ✅ DEFAULT: selezionato
+        }
+        
+        public CarrelloItem(Annuncio annuncio, int quantita) {
+            this.annuncioId = annuncio.getId();
+            this.titolo = annuncio.getTitolo();
+            this.prezzo = annuncio.getPrezzo();
+            this.quantita = quantita;
+            this.annuncio = annuncio;
+            this.selected = true; // ✅ DEFAULT: selezionato
         }
         
         // Getter e Setter
@@ -43,12 +56,33 @@ public class CarrelloManager {
         
         public int getQuantita() { return quantita; }
         public void setQuantita(int quantita) { this.quantita = quantita; }
+        
+        public Annuncio getAnnuncio() { return annuncio; }
+        public void setAnnuncio(Annuncio annuncio) { this.annuncio = annuncio; }
+        
+        // ✅ NUOVO: Getter e Setter per selected
+        public boolean isSelected() { return selected; }
+        public void setSelected(boolean selected) { this.selected = selected; }
+        
+        // ✅ NUOVO: Metodo per calcolare il subtotale
+        public double getSubtotale() {
+            return prezzo * quantita;
+        }
+        
+        // ✅ NUOVO: Metodo per formattare il subtotale
+        public String getSubtotaleFormattato() {
+            return String.format("€%.2f", getSubtotale());
+        }
+        
+        // ✅ NUOVO: Metodo per formattare il prezzo
+        public String getPrezzoFormattato() {
+            return String.format("€%.2f", prezzo);
+        }
     }
     
     private CarrelloManager() {
         this.carrelloDAO = new CarrelloDAO();
-        this.contoDAO = new ContoDAO(); // ✅ INIZIALIZZATO ContoDAO
-        this.utenteId = SessionManager.getCurrentUserId();
+        this.contoDAO = new ContoDAO();
     }
     
     public static CarrelloManager getInstance() {
@@ -58,26 +92,14 @@ public class CarrelloManager {
         return instance;
     }
     
-    public void aggiungiAlCarrello(Annuncio annuncio) {
-        if (utenteId == -1) {
-            System.out.println("❌ Utente non loggato, impossibile aggiungere al carrello");
-            mostraAlert("Accesso richiesto", "Devi effettuare il login per aggiungere articoli al carrello");
-            return;
-        }
-        
-        try {
-            boolean success = carrelloDAO.aggiungiAlCarrello(utenteId, annuncio.getId());
-            if (success) {
-                System.out.println("✅ Articolo '" + annuncio.getTitolo() + "' aggiunto al carrello");
-                mostraAlert("Successo", "Articolo aggiunto al carrello!");
-            } else {
-                System.out.println("❌ Errore nell'aggiunta al carrello");
-                mostraAlert("Errore", "Impossibile aggiungere l'articolo al carrello");
-            }
-        } catch (Exception e) {
-            System.err.println("❌ Errore durante l'aggiunta al carrello: " + e.getMessage());
-            mostraAlert("Errore", "Si è verificato un errore: " + e.getMessage());
-        }
+    // ✅ METODO: Ottiene l'ID utente corrente (sempre fresco)
+    private int getCurrentUserId() {
+        return SessionManager.getCurrentUserId();
+    }
+    
+    // ✅ METODO: Verifica se l'utente è loggato
+    private boolean isUserLoggedIn() {
+        return getCurrentUserId() > 0;
     }
 
     // Metodo helper per mostrare alert
@@ -110,20 +132,43 @@ public class CarrelloManager {
         }
     }
     
+    // ==================== METODI BASE CARRELLO ====================
+    
+    public void aggiungiAlCarrello(Annuncio annuncio) {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) {
+            mostraAlert("Accesso richiesto", "Devi effettuare il login per aggiungere articoli al carrello");
+            return;
+        }
+        
+        try {
+            boolean success = carrelloDAO.aggiungiAlCarrello(utenteId, annuncio.getId());
+            if (success) {
+                mostraAlert("Successo", "Articolo aggiunto al carrello!");
+            } else {
+                mostraAlert("Errore", "Impossibile aggiungere l'articolo al carrello");
+            }
+        } catch (Exception e) {
+            mostraAlert("Errore", "Si è verificato un errore: " + e.getMessage());
+        }
+    }
+    
     public void rimuoviDalCarrello(int annuncioId) {
-        if (utenteId == -1) return;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return;
         carrelloDAO.rimuoviDalCarrello(utenteId, annuncioId);
     }
     
     public void rimuoviDalCarrello(Annuncio annuncio) {
-        if (utenteId == -1) return;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return;
         carrelloDAO.rimuoviDalCarrello(utenteId, annuncio.getId());
     }
     
     public void modificaQuantita(Annuncio annuncio, int nuovaQuantita) {
-        if (utenteId == -1) return;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return;
         
-        // Prima trova l'ID del carrello per questo annuncio
         List<application.Classe.CarrelloItem> items = getCarrelloConQuantita();
         for (application.Classe.CarrelloItem item : items) {
             if (item.getAnnuncio().getId() == annuncio.getId()) {
@@ -135,11 +180,11 @@ public class CarrelloManager {
     
     public List<Annuncio> getCarrello() {
         List<Annuncio> result = new ArrayList<>();
-        if (utenteId == -1) return result;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return result;
         
         List<application.Classe.CarrelloItem> items = carrelloDAO.getCarrelloPerUtente(utenteId);
         for (application.Classe.CarrelloItem item : items) {
-            // Aggiungi l'annuncio tante volte quanto la quantità
             for (int i = 0; i < item.getQuantita(); i++) {
                 result.add(item.getAnnuncio());
             }
@@ -148,51 +193,57 @@ public class CarrelloManager {
     }
     
     public List<application.Classe.CarrelloItem> getCarrelloConQuantita() {
-        if (utenteId == -1) return new ArrayList<>();
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return new ArrayList<>();
         return carrelloDAO.getCarrelloPerUtente(utenteId);
     }
     
-    // METODO AGGIUNTO: Restituisce la lista di CarrelloItem per la TableView
     public List<CarrelloItem> getCarrelloItems() {
         List<CarrelloItem> result = new ArrayList<>();
-        if (utenteId == -1) return result;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return result;
         
         List<application.Classe.CarrelloItem> itemsDB = carrelloDAO.getCarrelloPerUtente(utenteId);
         for (application.Classe.CarrelloItem itemDB : itemsDB) {
-            // Converti dal CarrelloItem del database al CarrelloItem per la UI
             CarrelloItem uiItem = new CarrelloItem(
                 itemDB.getAnnuncio().getId(),
                 itemDB.getAnnuncio().getTitolo(),
                 itemDB.getAnnuncio().getPrezzo(),
                 itemDB.getQuantita()
             );
+            uiItem.setAnnuncio(itemDB.getAnnuncio());
             result.add(uiItem);
         }
         return result;
     }
     
     public void svuotaCarrello() {
-        if (utenteId == -1) return;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return;
         carrelloDAO.svuotaCarrello(utenteId);
     }
     
     public double getTotale() {
-        if (utenteId == -1) return 0.0;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return 0.0;
         return carrelloDAO.getPrezzoTotaleCarrello(utenteId);
     }
     
     public int getNumeroArticoli() {
-        if (utenteId == -1) return 0;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return 0;
         return carrelloDAO.contaElementiCarrello(utenteId);
     }
     
     public boolean contieneArticolo(Annuncio annuncio) {
-        if (utenteId == -1) return false;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return false;
         return carrelloDAO.isNelCarrello(utenteId, annuncio.getId());
     }
     
     public Annuncio getArticoloById(int id) {
-        if (utenteId == -1) return null;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return null;
         
         List<application.Classe.CarrelloItem> items = carrelloDAO.getCarrelloPerUtente(utenteId);
         for (application.Classe.CarrelloItem item : items) {
@@ -204,7 +255,8 @@ public class CarrelloManager {
     }
     
     public int getQuantitaArticolo(Annuncio annuncio) {
-        if (utenteId == -1) return 0;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return 0;
         
         List<application.Classe.CarrelloItem> items = carrelloDAO.getCarrelloPerUtente(utenteId);
         for (application.Classe.CarrelloItem item : items) {
@@ -216,105 +268,322 @@ public class CarrelloManager {
     }
     
     /**
-     * Metodo per aggiornare l'ID utente quando cambia la sessione
-     */
-    public void aggiornaUtente() {
-        this.utenteId = SessionManager.getCurrentUserId();
-    }
-    
-    /**
      * Metodo per forzare il ricaricamento del carrello
      */
     public void ricaricaCarrello() {
         // Il DAO ricarica sempre dal database, quindi non serve fare nulla qui
-        System.out.println("🔄 Carrello ricaricato dal database");
     }
     
-    // ✅ METODI AGGIUNTI PER LA GESTIONE DEL CONTO
+    // ==================== METODI SELEZIONE ARTICOLI ====================
     
     /**
-     * Effettua il checkout del carrello trasferendo i fondi dall'acquirente ai venditori
+     * Ottiene solo gli articoli selezionati nel carrello
      */
-    public boolean checkout() {
-        if (utenteId == -1) {
+    public List<CarrelloItem> getCarrelloItemsSelezionati() {
+        List<CarrelloItem> tuttiItems = getCarrelloItems();
+        List<CarrelloItem> selezionati = new ArrayList<>();
+        
+        for (CarrelloItem item : tuttiItems) {
+            if (item.isSelected()) {
+                selezionati.add(item);
+            }
+        }
+        return selezionati;
+    }
+    
+    /**
+     * Seleziona/deseleziona tutti gli articoli nel carrello
+     */
+    public void selezionaTutti(boolean selezionato) {
+        List<CarrelloItem> tuttiItems = getCarrelloItems();
+        for (CarrelloItem item : tuttiItems) {
+            item.setSelected(selezionato);
+        }
+    }
+    
+    /**
+     * Seleziona/deseleziona un articolo specifico
+     */
+    public void selezionaArticolo(int annuncioId, boolean selezionato) {
+        List<CarrelloItem> tuttiItems = getCarrelloItems();
+        for (CarrelloItem item : tuttiItems) {
+            if (item.getAnnuncioId() == annuncioId) {
+                item.setSelected(selezionato);
+                break;
+            }
+        }
+    }
+    
+    /**
+     * Inverte la selezione di tutti gli articoli
+     */
+    public void invertiSelezione() {
+        List<CarrelloItem> tuttiItems = getCarrelloItems();
+        for (CarrelloItem item : tuttiItems) {
+            item.setSelected(!item.isSelected());
+        }
+    }
+    
+    /**
+     * Verifica se un articolo è selezionato
+     */
+    public boolean isArticoloSelezionato(int annuncioId) {
+        List<CarrelloItem> tuttiItems = getCarrelloItems();
+        for (CarrelloItem item : tuttiItems) {
+            if (item.getAnnuncioId() == annuncioId) {
+                return item.isSelected();
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Ottiene il numero di articoli selezionati
+     */
+    public int getNumeroArticoliSelezionati() {
+        return getCarrelloItemsSelezionati().size();
+    }
+    
+    /**
+     * Ottiene il totale degli articoli selezionati
+     */
+    public double getTotaleSelezionati() {
+        double totale = 0.0;
+        List<CarrelloItem> selezionati = getCarrelloItemsSelezionati();
+        for (CarrelloItem item : selezionati) {
+            totale += item.getSubtotale();
+        }
+        return totale;
+    }
+    
+    /**
+     * Ottiene il totale formattato degli articoli selezionati
+     */
+    public String getTotaleSelezionatiFormattato() {
+        return String.format("€%.2f", getTotaleSelezionati());
+    }
+    
+    /**
+     * Verifica se ci sono articoli selezionati
+     */
+    public boolean haArticoliSelezionati() {
+        return getNumeroArticoliSelezionati() > 0;
+    }
+    
+    /**
+     * Verifica se tutti gli articoli sono selezionati
+     */
+    public boolean sonoTuttiSelezionati() {
+        List<CarrelloItem> tuttiItems = getCarrelloItems();
+        if (tuttiItems.isEmpty()) return false;
+        
+        for (CarrelloItem item : tuttiItems) {
+            if (!item.isSelected()) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    /**
+     * Verifica se nessun articolo è selezionato
+     */
+    public boolean nessunoSelezionato() {
+        return !haArticoliSelezionati();
+    }
+    
+    // ==================== METODI GESTIONE ARTICOLI SELEZIONATI ====================
+    
+    /**
+     * Rimuove gli articoli selezionati dal carrello
+     */
+    public boolean rimuoviSelezionati() {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return false;
+        
+        List<CarrelloItem> selezionati = getCarrelloItemsSelezionati();
+        if (selezionati.isEmpty()) {
+            mostraAlert("Nessuna selezione", "Seleziona gli articoli da rimuovere");
+            return false;
+        }
+        
+        int countRimossi = 0;
+        for (CarrelloItem item : selezionati) {
+            boolean success = carrelloDAO.rimuoviDalCarrello(utenteId, item.getAnnuncioId());
+            if (success) {
+                countRimossi++;
+            }
+        }
+        
+        if (countRimossi > 0) {
+            mostraAlert("Successo", "Rimossi " + countRimossi + " articoli dal carrello");
+            return true;
+        } else {
+            mostraAlertErrore("Errore", "Impossibile rimuovere gli articoli selezionati");
+            return false;
+        }
+    }
+    
+    /**
+     * Rimuove un singolo articolo selezionato
+     */
+    public boolean rimuoviArticoloSelezionato(int annuncioId) {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return false;
+        
+        return carrelloDAO.rimuoviDalCarrello(utenteId, annuncioId);
+    }
+    
+    // ==================== METODI CHECKOUT ====================
+    
+    /**
+     * Effettua il checkout solo degli articoli selezionati
+     */
+    /**
+     * Effettua il checkout solo degli articoli selezionati
+     */
+    public boolean checkoutSelezionati() {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) {
             mostraAlertErrore("Errore", "Devi effettuare il login per completare l'acquisto");
             return false;
         }
         
-        double totale = getTotale();
-        if (totale <= 0) {
-            mostraAlertErrore("Errore", "Il carrello è vuoto");
+        // ✅ CORRETTO: Usa getCarrelloItemsSelezionati() invece di getCarrelloConQuantita()
+        List<CarrelloItem> selezionati = getCarrelloItemsSelezionati();
+        if (selezionati.isEmpty()) {
+            mostraAlertErrore("Errore", "Seleziona gli articoli da acquistare");
+            return false;
+        }
+        
+        double totaleSelezionati = getTotaleSelezionati();
+        if (totaleSelezionati <= 0) {
+            mostraAlertErrore("Errore", "Il totale degli articoli selezionati non è valido");
             return false;
         }
         
         // Verifica saldo sufficiente
-        BigDecimal importoTotale = BigDecimal.valueOf(totale);
+        BigDecimal importoTotale = BigDecimal.valueOf(totaleSelezionati);
         if (!contoDAO.verificaSaldoSufficiente(utenteId, importoTotale)) {
             mostraAlertErrore("Saldo Insufficiente", 
                 "Saldo insufficiente per completare l'acquisto.\n" +
-                "Totale: €" + String.format("%.2f", totale) + "\n" +
+                "Totale selezionato: €" + String.format("%.2f", totaleSelezionati) + "\n" +
                 "Il tuo saldo: €" + String.format("%.2f", getSaldoUtente()) + "\n" +
                 "Carica soldi per procedere.");
             return false;
         }
         
         try {
-            // Processa ogni articolo nel carrello
-            List<application.Classe.CarrelloItem> items = getCarrelloConQuantita();
             boolean successoCompleto = true;
+            List<String> articoliProcessati = new ArrayList<>();
             List<String> articoliNonProcessati = new ArrayList<>();
             
-            for (application.Classe.CarrelloItem item : items) {
+            System.out.println("[DEBUG] Checkout selezionati per utente ID: " + utenteId);
+            System.out.println("[DEBUG] Numero articoli selezionati: " + selezionati.size());
+            
+            // ✅ CORRETTO: Itera su selezionati invece di getCarrelloConQuantita()
+            for (CarrelloItem item : selezionati) {
                 Annuncio annuncio = item.getAnnuncio();
+                
+                // ✅ DEBUG: Informazioni articolo
+                System.out.println("[DEBUG] Processando articolo selezionato: " + annuncio.getTitolo() + 
+                                 " | Venditore ID: " + annuncio.getVenditoreId() +
+                                 " | Quantità: " + item.getQuantita() +
+                                 " | Prezzo: " + annuncio.getPrezzo());
+                
+                // ✅ CONTROLLO: Verifica che l'annuncio abbia un venditore ID valido
+                if (annuncio.getVenditoreId() <= 0) {
+                    System.err.println("[DEBUG] ❌ Venditore ID non valido per: " + annuncio.getTitolo());
+                    articoliNonProcessati.add(annuncio.getTitolo() + " (venditore non valido)");
+                    successoCompleto = false;
+                    continue;
+                }
+                
                 BigDecimal importoArticolo = BigDecimal.valueOf(annuncio.getPrezzo() * item.getQuantita());
                 String descrizione = "Acquisto: " + annuncio.getTitolo() + " (x" + item.getQuantita() + ")";
                 
-                // Trasferisci fondi dall'acquirente al venditore
-                boolean success = contoDAO.trasferisciFondi(
+                // 1. Trasferisci fondi dall'acquirente al venditore
+                boolean successTrasferimento = contoDAO.trasferisciFondi(
                     utenteId, 
                     annuncio.getVenditoreId(), 
                     importoArticolo, 
                     descrizione
                 );
                 
-                if (!success) {
-                    successoCompleto = false;
-                    articoliNonProcessati.add(annuncio.getTitolo());
-                    System.err.println("❌ Errore nel trasferimento per articolo: " + annuncio.getTitolo());
+                if (successTrasferimento) {
+                    // 2. Aggiorna lo stato dell'annuncio a "VENDUTO"
+                    try {
+                        AnnuncioDAO annuncioDAO = new AnnuncioDAO();
+                        boolean successAggiornamento = annuncioDAO.aggiornaStatoAnnuncio(annuncio.getId(), "VENDUTO");
+                        
+                        if (successAggiornamento) {
+                            articoliProcessati.add(annuncio.getTitolo());
+                            // 3. Rimuovi SOLO l'articolo processato dal carrello
+                            rimuoviArticoloSelezionato(annuncio.getId());
+                        } else {
+                            articoliNonProcessati.add(annuncio.getTitolo() + " (errore aggiornamento stato)");
+                            successoCompleto = false;
+                        }
+                    } catch (SQLException e) {
+                        articoliNonProcessati.add(annuncio.getTitolo() + " (errore database)");
+                        successoCompleto = false;
+                    }
                 } else {
-                    System.out.println("✅ Articolo processato: " + annuncio.getTitolo());
+                    articoliNonProcessati.add(annuncio.getTitolo() + " (errore trasferimento)");
+                    successoCompleto = false;
                 }
             }
             
-            if (successoCompleto) {
-                // Svuota il carrello dopo l'acquisto
-                svuotaCarrello();
-                mostraAlert("Successo", 
-                    "Acquisto completato con successo!\n" +
-                    "Totale speso: €" + String.format("%.2f", totale) + "\n" +
-                    "Nuovo saldo: €" + String.format("%.2f", getSaldoUtente()));
-                System.out.println("✅ Checkout completato per utente: " + utenteId);
-                return true;
+            if (successoCompleto || !articoliProcessati.isEmpty()) {
+                // ✅ CORRETTO: Non svuotare tutto il carrello, solo gli articoli processati
+                // (già rimossi individualmente nel loop sopra)
+                
+                String messaggio = "Acquisto completato con successo!\n" +
+                    "Totale speso: €" + String.format("%.2f", totaleSelezionati) + "\n" +
+                    "Nuovo saldo: €" + String.format("%.2f", getSaldoUtente());
+                
+                if (!articoliProcessati.isEmpty()) {
+                    messaggio += "\n\nArticoli acquistati:\n• " + String.join("\n• ", articoliProcessati);
+                }
+                
+                if (!articoliNonProcessati.isEmpty()) {
+                    messaggio += "\n\nArticoli non processati:\n• " + String.join("\n• ", articoliNonProcessati);
+                }
+                
+                mostraAlert("Checkout Completato", messaggio);
+                return successoCompleto;
             } else {
-                mostraAlertErrore("Errore Parziale", 
-                    "Alcuni articoli non sono stati processati:\n" +
+                mostraAlertErrore("Errore Checkout", 
+                    "Nessun articolo è stato processato correttamente:\n" +
                     String.join("\n", articoliNonProcessati) + "\n\n" +
                     "Controlla il saldo e riprova.");
                 return false;
             }
             
         } catch (Exception e) {
-            System.err.println("❌ Errore durante il checkout: " + e.getMessage());
             mostraAlertErrore("Errore", "Si è verificato un errore durante il checkout: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
     
     /**
+     * Effettua il checkout completo di tutti gli articoli nel carrello
+     */
+    public boolean checkoutCompleto() {
+        // Seleziona tutti gli articoli e poi fa checkout
+        selezionaTutti(true);
+        return checkoutSelezionati();
+    }
+    
+    // ==================== METODI GESTIONE CONTO ====================
+    
+    /**
      * Ricarica il conto dell'utente
      */
     public boolean ricaricaConto(double importo, String metodoPagamento) {
-        if (utenteId == -1) {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) {
             mostraAlertErrore("Errore", "Devi effettuare il login per ricaricare il conto");
             return false;
         }
@@ -334,7 +603,6 @@ public class CarrelloManager {
                     "Importo: €" + String.format("%.2f", importo) + "\n" +
                     "Metodo: " + metodoPagamento + "\n" +
                     "Nuovo saldo: €" + String.format("%.2f", getSaldoUtente()));
-                System.out.println("✅ Ricarica conto: " + importo + " per utente " + utenteId);
                 return true;
             } else {
                 mostraAlertErrore("Errore", "Errore durante la ricarica del conto");
@@ -342,7 +610,6 @@ public class CarrelloManager {
             }
             
         } catch (Exception e) {
-            System.err.println("❌ Errore durante la ricarica: " + e.getMessage());
             mostraAlertErrore("Errore", "Si è verificato un errore durante la ricarica: " + e.getMessage());
             return false;
         }
@@ -352,7 +619,8 @@ public class CarrelloManager {
      * Ottiene il saldo corrente dell'utente
      */
     public BigDecimal getSaldoUtente() {
-        if (utenteId == -1) {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) {
             return BigDecimal.ZERO;
         }
         
@@ -361,20 +629,22 @@ public class CarrelloManager {
     }
     
     /**
-     * Verifica se l'utente può effettuare l'acquisto
+     * Verifica se l'utente può effettuare l'acquisto degli articoli selezionati
      */
-    public boolean puòAcquistare() {
-        if (utenteId == -1) return false;
+    public boolean puòAcquistareSelezionati() {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return false;
         
-        double totale = getTotale();
-        return contoDAO.verificaSaldoSufficiente(utenteId, BigDecimal.valueOf(totale));
+        double totaleSelezionati = getTotaleSelezionati();
+        return contoDAO.verificaSaldoSufficiente(utenteId, BigDecimal.valueOf(totaleSelezionati));
     }
     
     /**
      * Ottiene i movimenti del conto
      */
     public List<Conto.Movimento> getMovimentiConto() {
-        if (utenteId == -1) return new ArrayList<>();
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return new ArrayList<>();
         
         Conto conto = contoDAO.getContoByUtenteId(utenteId);
         return conto != null ? conto.getMovimenti() : new ArrayList<>();
@@ -384,7 +654,8 @@ public class CarrelloManager {
      * Ottiene il conto completo dell'utente
      */
     public Conto getContoUtente() {
-        if (utenteId == -1) return null;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return null;
         return contoDAO.getContoByUtenteId(utenteId);
     }
     
@@ -392,7 +663,8 @@ public class CarrelloManager {
      * Verifica se l'utente ha un conto
      */
     public boolean haConto() {
-        if (utenteId == -1) return false;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return false;
         return contoDAO.getContoByUtenteId(utenteId) != null;
     }
     
@@ -400,7 +672,8 @@ public class CarrelloManager {
      * Crea un conto per l'utente se non esiste
      */
     public boolean creaContoSeMancante() {
-        if (utenteId == -1) return false;
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return false;
         
         Conto conto = contoDAO.creaContoSeMancante(utenteId);
         return conto != null;
@@ -424,7 +697,8 @@ public class CarrelloManager {
      * Verifica se il checkout è possibile e restituisce un messaggio di stato
      */
     public String getStatoCheckout() {
-        if (utenteId == -1) {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) {
             return "Devi effettuare il login per acquistare";
         }
         
@@ -432,13 +706,127 @@ public class CarrelloManager {
             return "Il carrello è vuoto";
         }
         
-        double totale = getTotale();
+        if (nessunoSelezionato()) {
+            return "Seleziona gli articoli da acquistare";
+        }
+        
+        double totaleSelezionati = getTotaleSelezionati();
         BigDecimal saldo = getSaldoUtente();
         
-        if (saldo.compareTo(BigDecimal.valueOf(totale)) >= 0) {
-            return "Pronto per l'acquisto - Saldo sufficiente";
+        if (saldo.compareTo(BigDecimal.valueOf(totaleSelezionati)) >= 0) {
+            return "Pronto per l'acquisto - " + getNumeroArticoliSelezionati() + " articoli selezionati";
         } else {
-            return "Saldo insufficiente - Ricarica il conto";
+            return "Saldo insufficiente per gli articoli selezionati - Ricarica il conto";
         }
+    }
+    
+    /**
+     * Verifica se il checkout degli articoli selezionati è possibile
+     */
+    public String getStatoCheckoutSelezionati() {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) {
+            return "Devi effettuare il login per acquistare";
+        }
+        
+        if (nessunoSelezionato()) {
+            return "Seleziona gli articoli da acquistare";
+        }
+        
+        double totaleSelezionati = getTotaleSelezionati();
+        BigDecimal saldo = getSaldoUtente();
+        
+        if (saldo.compareTo(BigDecimal.valueOf(totaleSelezionati)) >= 0) {
+            return "Pronto per l'acquisto - " + getNumeroArticoliSelezionati() + " articoli selezionati (€" + 
+                   String.format("%.2f", totaleSelezionati) + ")";
+        } else {
+            return "Saldo insufficiente - Ti mancano €" + 
+                   String.format("%.2f", (totaleSelezionati - saldo.doubleValue()));
+        }
+    }
+    
+    // ==================== METODI UTILITY ====================
+    
+    /**
+     * Pulisce la selezione (deseleziona tutto)
+     */
+    public void pulisciSelezione() {
+        selezionaTutti(false);
+    }
+    
+    /**
+     * Debug: stampa lo stato del carrello
+     */
+    public void debugCarrello() {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) {
+            System.out.println("[DEBUG] Nessun utente loggato");
+            return;
+        }
+        
+        List<CarrelloItem> items = getCarrelloItems();
+        System.out.println("=== DEBUG CARRELLO ===");
+        System.out.println("Utente ID: " + utenteId);
+        System.out.println("Numero articoli: " + items.size());
+        System.out.println("Articoli selezionati: " + getNumeroArticoliSelezionati());
+        System.out.println("Totale selezionato: €" + getTotaleSelezionati());
+        
+        for (CarrelloItem item : items) {
+            System.out.println("• " + item.getTitolo() + 
+                             " | Prezzo: " + item.getPrezzoFormattato() +
+                             " | Quantità: " + item.getQuantita() +
+                             " | Subtotale: " + item.getSubtotaleFormattato() +
+                             " | Selezionato: " + item.isSelected());
+        }
+        System.out.println("======================");
+    }
+    
+    /**
+     * ✅ AGGIUNTO: Metodo per compatibilità - verifica se l'utente può acquistare tutto il carrello
+     * (Mantenuto per compatibilità con codice esistente)
+     */
+    public boolean puòAcquistare() {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) return false;
+        
+        double totale = getTotale();
+        return contoDAO.verificaSaldoSufficiente(utenteId, BigDecimal.valueOf(totale));
+ 
+    }
+    
+    /**
+     * ✅ AGGIUNTO: Metodo per debug - mostra articoli selezionati vs totali
+     */
+    public void debugSelezione() {
+        int utenteId = getCurrentUserId();
+        if (utenteId <= 0) {
+            System.out.println("[DEBUG] Nessun utente loggato");
+            return;
+        }
+        
+        List<CarrelloItem> tuttiItems = getCarrelloItems();
+        List<CarrelloItem> selezionati = getCarrelloItemsSelezionati();
+        
+        System.out.println("=== DEBUG SELEZIONE ===");
+        System.out.println("Articoli totali nel carrello: " + tuttiItems.size());
+        System.out.println("Articoli selezionati: " + selezionati.size());
+        
+        System.out.println("--- ARTICOLI TOTALI ---");
+        for (CarrelloItem item : tuttiItems) {
+            System.out.println("• " + item.getTitolo() + 
+                             " | Quantità: " + item.getQuantita() + 
+                             " | Selezionato: " + item.isSelected());
+        }
+        
+        System.out.println("--- ARTICOLI SELEZIONATI ---");
+        for (CarrelloItem item : selezionati) {
+            System.out.println("• " + item.getTitolo() + 
+                             " | Quantità: " + item.getQuantita() + 
+                             " | Subtotale: €" + item.getSubtotale());
+        }
+        
+        System.out.println("Totale carrello: €" + getTotale());
+        System.out.println("Totale selezionati: €" + getTotaleSelezionati());
+        System.out.println("======================");
     }
 }

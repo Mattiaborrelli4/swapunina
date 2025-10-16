@@ -83,3 +83,22 @@
     -fx-scale-y: 1.05;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.8), 15, 0.6, 0, 6);
 }
+
+.venduto-badge {
+    -fx-background-color: #e74c3c;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 5px 10px;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 5, 0, 0, 2);
+}
+
+.product-card[data-stato="VENDUTO"] {
+    -fx-opacity: 0.8;
+    -fx-background-color: #f8f9fa;
+}
+
+.product-card[data-stato="VENDUTO"] .product-image {
+    -fx-opacity: 0.6;
+}

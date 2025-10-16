@@ -7,30 +7,23 @@ import application.Classe.Oggetto;
 import application.Classe.utente;
 import application.Enum.OrigineOggetto;
 import application.Enum.Tipologia;
-import application.messagistica.ChatListDialog;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import schermata.button.CarrelloManager;
 import schermata.button.MessaggiDialog;
 import schermata.button.RecensioneDialog;
 import application.DB.AnnuncioDAO;
-import application.DB.ConnessioneDB;
 import application.DB.MessaggioDAO;
 import application.DB.RecensioneDAO;
 import application.DB.SessionManager;
 import application.DB.UserDAO;
 
 import java.io.InputStream;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -45,22 +38,23 @@ public class ProductCard extends VBox {
     private final ImageView productImage = new ImageView();
     private final Label badge = new Label();
     private final Button contactButton = new Button();
-    private final Label title = new Label(); // CAMBIATO: Da Text a Label per meglio controllo stile
+    private final Label title = new Label();
     private final Text price = new Text();
     private final Text description = new Text();
     private final Button detailsButton = new Button("Dettagli");
     private final Button actionButton = new Button();
+    private final Label vendutoBadge = new Label("VENDUTO");
     
     private Consumer<Annuncio> onDetailsAction;
     private Consumer<Annuncio> onAction;
     private Consumer<Annuncio> onFavoriteAction;
-    private Consumer<Annuncio> onAnnuncioModificato; // ✅ NUOVO: Callback per annuncio modificato
+    private Consumer<Annuncio> onAnnuncioModificato;
     private final int currentUserId = SessionManager.getCurrentUserId();
-    private final Annuncio annuncio; // ✅ NUOVO: Memorizza l'annuncio
+    private final Annuncio annuncio;
 
     public ProductCard(Annuncio annuncio) {
         super(10);
-        this.annuncio = annuncio; // ✅ NUOVO: Salva l'annuncio
+        this.annuncio = annuncio;
         setPadding(new Insets(12));
         getStyleClass().add("product-card");
 
@@ -70,11 +64,13 @@ public class ProductCard extends VBox {
         setupEventHandlers(annuncio);
         applyStyles();
         setupTooltips();
+        
+        // ✅ AGGIUNTA: Controlla se l'annuncio è venduto
+        if ("VENDUTO".equalsIgnoreCase(annuncio.getStato())) {
+            mostraStatoVenduto();
+        }
     }
 
-    /**
-     * ✅ NUOVO METODO: Ottieni l'ID dell'annuncio
-     */
     public int getAnnuncioId() {
         return annuncio.getId();
     }
@@ -84,7 +80,7 @@ public class ProductCard extends VBox {
     }
 
     private void setupImageSection(Annuncio annuncio) {
-        VBox imageContainer = new VBox();
+        StackPane imageContainer = new StackPane();
         imageContainer.setAlignment(Pos.TOP_CENTER);
         imageContainer.getStyleClass().add("product-image-container");
 
@@ -123,13 +119,52 @@ public class ProductCard extends VBox {
         contactButton.getStyleClass().add("contact-button-large");
         contactButton.setTooltip(new Tooltip("Contatta venditore"));
 
-        // Layout semplificato
+        // Setup badge "VENDUTO"
+        vendutoBadge.getStyleClass().add("venduto-badge");
+        vendutoBadge.setStyle(
+            "-fx-background-color: #e74c3c; " +
+            "-fx-text-fill: white; " +
+            "-fx-font-weight: bold; " +
+            "-fx-padding: 5px 10px; " +
+            "-fx-border-radius: 10; " +
+            "-fx-background-radius: 10;"
+        );
+        vendutoBadge.setVisible(false);
+        StackPane.setAlignment(vendutoBadge, Pos.TOP_RIGHT);
+        StackPane.setMargin(vendutoBadge, new Insets(10));
+
+        // Layout
         HBox badgeRow = new HBox(12, badge, new Region(), contactButton);
         HBox.setHgrow(badgeRow.getChildren().get(1), Priority.ALWAYS);
         badgeRow.setAlignment(Pos.CENTER_LEFT);
+        badgeRow.setPadding(new Insets(10));
 
-        imageContainer.getChildren().addAll(productImage, badgeRow);
+        imageContainer.getChildren().addAll(productImage, badgeRow, vendutoBadge);
         getChildren().add(imageContainer);
+    }
+
+    /**
+     * ✅ NUOVO METODO: Mostra lo stato venduto disabilitando i pulsanti e mostrando il badge
+     */
+    private void mostraStatoVenduto() {
+        // Mostra badge "VENDUTO"
+        vendutoBadge.setVisible(true);
+        
+        // Disabilita tutti i pulsanti
+        actionButton.setDisable(true);
+        detailsButton.setDisable(true);
+        contactButton.setDisable(true);
+        
+        // Cambia il testo del pulsante principale
+        actionButton.setText("✅ Venduto");
+        actionButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white;");
+        
+        // Aggiungi tooltip
+        Tooltip.install(actionButton, new Tooltip("Questo articolo è stato venduto"));
+        Tooltip.install(vendutoBadge, new Tooltip("Questo articolo è stato venduto"));
+        
+        // Applica stile opaco alla card
+        setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #ddd; -fx-border-radius: 8; -fx-background-radius: 8; -fx-opacity: 0.8;");
     }
 
     private void loadProductImage(Annuncio annuncio) {
@@ -137,12 +172,10 @@ public class ProductCard extends VBox {
             Oggetto oggetto = annuncio.getOggetto();
             if (oggetto != null && oggetto.getImageUrl() != null && !oggetto.getImageUrl().isEmpty()) {
                 String imageUrl = oggetto.getImageUrl();
-                // Se è un percorso file locale, converti in URL
                 if (imageUrl.startsWith("file:")) {
                     Image image = new Image(imageUrl, IMAGE_WIDTH, IMAGE_HEIGHT, true, true, true);
                     productImage.setImage(image);
                 } else {
-                    // Prova a caricare come risorsa interna
                     InputStream imageStream = getClass().getResourceAsStream(imageUrl);
                     if (imageStream != null) {
                         Image image = new Image(imageStream, IMAGE_WIDTH, IMAGE_HEIGHT, true, true);
@@ -179,7 +212,6 @@ public class ProductCard extends VBox {
         content.setPadding(new Insets(20));
         content.getStyleClass().add("product-content");
 
-        // ✅ MODIFICA: Il titolo viene SOLO dall'annuncio
         String titoloAnnuncio = annuncio.getTitolo() != null ? annuncio.getTitolo() : "Senza titolo";
         
         title.setText(titoloAnnuncio);
@@ -215,34 +247,36 @@ public class ProductCard extends VBox {
         VBox metaInfo = createMetaInfo(annuncio);
         metaInfo.getStyleClass().add("product-meta");
 
-        // Gestione pulsante azione principale
-        if (currentUserId != -1 && currentUserId == annuncio.getVenditoreId()) {
-            actionButton.setText("Modifica Annuncio");
-            actionButton.setStyle("-fx-background-color: #6b7280; -fx-text-fill: white; -fx-font-weight: bold;");
-        } else if (annuncio.getTipologia() == Tipologia.ASTA) {
-            actionButton.setText("💰 Fai Offerta");
-            actionButton.setStyle("-fx-background-color: #f39c12; -fx-text-fill: white; -fx-font-weight: bold;");
-        } else if (annuncio.getOggetto() != null) {
-            switch (annuncio.getOggetto().getOrigine()) {
-                case USATO:
-                    actionButton.setText("🛒 Aggiungi al Carrello");
-                    actionButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold;");
-                    break;
-                case SCAMBIO:
-                    actionButton.setText("🔄 Proponi Scambio");
-                    actionButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold;");
-                    break;
-                case REGALO:
-                    actionButton.setText("📞 Contatta");
-                    actionButton.setStyle("-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-weight: bold;");
-                    break;
-                default:
-                    actionButton.setText("📞 Contatta");
-                    actionButton.setStyle("-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-weight: bold;");
+        // Gestione pulsante azione principale - solo se non è venduto
+        if (!"VENDUTO".equalsIgnoreCase(annuncio.getStato())) {
+            if (currentUserId != -1 && currentUserId == annuncio.getVenditoreId()) {
+                actionButton.setText("Modifica Annuncio");
+                actionButton.setStyle("-fx-background-color: #6b7280; -fx-text-fill: white; -fx-font-weight: bold;");
+            } else if (annuncio.getTipologia() == Tipologia.ASTA) {
+                actionButton.setText("💰 Fai Offerta");
+                actionButton.setStyle("-fx-background-color: #f39c12; -fx-text-fill: white; -fx-font-weight: bold;");
+            } else if (annuncio.getOggetto() != null) {
+                switch (annuncio.getOggetto().getOrigine()) {
+                    case USATO:
+                        actionButton.setText("🛒 Aggiungi al Carrello");
+                        actionButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold;");
+                        break;
+                    case SCAMBIO:
+                        actionButton.setText("🔄 Proponi Scambio");
+                        actionButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold;");
+                        break;
+                    case REGALO:
+                        actionButton.setText("📞 Contatta");
+                        actionButton.setStyle("-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-weight: bold;");
+                        break;
+                    default:
+                        actionButton.setText("📞 Contatta");
+                        actionButton.setStyle("-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-weight: bold;");
+                }
+            } else {
+                actionButton.setText("📞 Contatta");
+                actionButton.setStyle("-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-weight: bold;");
             }
-        } else {
-            actionButton.setText("📞 Contatta");
-            actionButton.setStyle("-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-weight: bold;");
         }
 
         // Pulsante dettagli
@@ -254,7 +288,7 @@ public class ProductCard extends VBox {
         actions.setAlignment(Pos.CENTER);
         actions.getStyleClass().add("product-actions");
 
-        // ✅ MODIFICA: Pulsanti recensioni - SEMPRE mostra "Recensioni", "Lascia Recensione" solo se non è il proprio annuncio
+        // Pulsanti recensioni
         if (currentUserId != -1) {
             Button recensioniBtn = new Button("⭐ Recensioni");
             recensioniBtn.setStyle("-fx-background-color: #f1c40f; -fx-text-fill: white; -fx-font-weight: bold;");
@@ -264,10 +298,8 @@ public class ProductCard extends VBox {
             recensioniBox.setAlignment(Pos.CENTER);
             recensioniBox.getStyleClass().add("review-actions");
             
-            // Sempre mostra il pulsante per vedere le recensioni
             recensioniBox.getChildren().add(recensioniBtn);
             
-            // Mostra il pulsante "Lascia Recensione" solo se non è il proprio annuncio
             if (currentUserId != annuncio.getVenditoreId()) {
                 Button lasciaRecensioneBtn = new Button("✍️ Lascia Recensione");
                 lasciaRecensioneBtn.setStyle("-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold;");
@@ -322,6 +354,11 @@ public class ProductCard extends VBox {
         });
         
         actionButton.setOnAction(e -> {
+            // Se l'annuncio è venduto, non fare nulla
+            if ("VENDUTO".equalsIgnoreCase(annuncio.getStato())) {
+                return;
+            }
+            
             // CONTROLLO PRINCIPALE: Gestisci modifica annuncio per il venditore
             if (currentUserId != -1 && currentUserId == annuncio.getVenditoreId()) {
                 modificaAnnuncio(annuncio);
@@ -339,7 +376,6 @@ public class ProductCard extends VBox {
             } else if (buttonText.contains("Contatta")) {
                 contattaPerRegalo(annuncio);
             } else {
-                // Fallback: usa la logica originale
                 handleDefaultAction(annuncio);
             }
         });
@@ -350,7 +386,6 @@ public class ProductCard extends VBox {
                 return;
             }
             
-            // Apri la chat specifica con messaggio precompilato
             String messaggioIniziale = "Salve, sono interessato al suo articolo: " + annuncio.getTitolo();
             MessaggiDialog dialog = new MessaggiDialog(annuncio, currentUserId, messaggioIniziale);
             dialog.showAndWait();
@@ -368,7 +403,6 @@ public class ProductCard extends VBox {
                 if (successo) {
                     mostraMessaggio("Annuncio aggiornato con successo!");
                     
-                    // ✅ NUOVO: Notifica che l'annuncio è stato modificato
                     if (onAnnuncioModificato != null) {
                         onAnnuncioModificato.accept(annuncioModificato);
                     }
@@ -392,13 +426,11 @@ public class ProductCard extends VBox {
             return;
         }
         
-        // Se l'utente è il venditore, non permettere azioni
         if (currentUserId != -1 && currentUserId == annuncio.getVenditoreId()) {
             mostraMessaggio("Sei il venditore di questo annuncio");
             return;
         }
         
-        // Gestisci in base al tipo di annuncio
         if (annuncio.getTipologia() == Tipologia.ASTA) {
             faiOfferta(annuncio);
         } else if (annuncio.getOggetto() != null) {
@@ -418,7 +450,6 @@ public class ProductCard extends VBox {
         }
     }
 
-    // METODI PER LE AZIONI (rimangono invariati)
     private void aggiungiAlCarrello(Annuncio annuncio) {
         try {
             CarrelloManager carrelloManager = CarrelloManager.getInstance();
@@ -526,12 +557,9 @@ public class ProductCard extends VBox {
         });
     }
 
-    // METODI PER LE RECENSIONI - MODIFICATO
     private void mostraRecensioniVenditore(Annuncio annuncio) {
         try {
             RecensioneDAO recensioneDAO = new RecensioneDAO();
-            
-            // MODIFICA: Usa il nuovo metodo che restituisce recensioni + statistiche
             RecensioneDAO.StatisticheRecensioni risultato = 
                 recensioneDAO.getRecensioniEStatistichePerAnnuncio(annuncio.getId());
             
@@ -543,14 +571,10 @@ public class ProductCard extends VBox {
             }
             
             double punteggioMedio = risultato.getPunteggioMedio();
-            
-            // MODIFICA: Usa il nuovo costruttore con annuncio
             RecensioneDialog dialog = new RecensioneDialog(annuncio, recensioni, punteggioMedio);
             dialog.showAndWait();
             
         } catch (Exception e) {
-            System.err.println("Errore dettagliato nel caricamento delle recensioni: " + e.getMessage());
-            e.printStackTrace();
             mostraMessaggio("Errore nel caricamento delle recensioni. Riprova più tardi.");
         }
     }
@@ -591,7 +615,6 @@ public class ProductCard extends VBox {
 
         } catch (Exception e) {
             mostraMessaggio("Errore durante l'invio della recensione: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
@@ -608,7 +631,6 @@ public class ProductCard extends VBox {
         }
     }
 
-    // METODI DI SUPPORTO
     private boolean isUtenteLoggato() {
         return SessionManager.getCurrentUser() != null;
     }
@@ -649,6 +671,8 @@ public class ProductCard extends VBox {
             actionTooltip = "Fai un'offerta per questa asta";
         } else if (actionButton.getText().contains("Modifica")) {
             actionTooltip = "Modifica il tuo annuncio";
+        } else if (actionButton.getText().contains("Venduto")) {
+            actionTooltip = "Questo articolo è stato venduto";
         }
         Tooltip.install(actionButton, new Tooltip(actionTooltip));
         
@@ -683,9 +707,6 @@ public class ProductCard extends VBox {
         this.onFavoriteAction = handler;
     }
 
-    /**
-     * ✅ NUOVO SETTER: Per il callback di annuncio modificato
-     */
     public void setOnAnnuncioModificato(Consumer<Annuncio> handler) {
         this.onAnnuncioModificato = handler;
     }

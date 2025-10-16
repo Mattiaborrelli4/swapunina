@@ -220,12 +220,18 @@ public class AnnuncioDAO {
     // Aggiorna lo stato di un annuncio
     public boolean aggiornaStatoAnnuncio(int annuncioId, String nuovoStato) throws SQLException {
         String sql = "UPDATE " + TABLE_NAME + " SET stato = ? WHERE id = ?";
-
+        
         try (Connection conn = ConnessioneDB.getConnessione();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, nuovoStato);
             stmt.setInt(2, annuncioId);
-            return stmt.executeUpdate() > 0;
+            int rowsAffected = stmt.executeUpdate();
+            
+            if (rowsAffected > 0) {
+                System.out.println("✅ Stato annuncio " + annuncioId + " aggiornato a: " + nuovoStato);
+                return true;
+            }
+            return false;
         }
     }
 
