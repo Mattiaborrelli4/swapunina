@@ -17,47 +17,6 @@ public class AnnuncioDAO {
     private static final String TABLE_NAME = "annuncio";
     private static final String CARATTERISTICHE_TABLE = "annuncio_caratteristica";
 
-    // Costruttore che verifica e crea le tabelle se mancanti
-    public AnnuncioDAO() {
-        creaTabelleSeMancanti();
-    }
-
-    // Crea le tabelle annuncio e annuncio_caratteristica se non esistono
-    private void creaTabelleSeMancanti() {
-        try (Connection conn = ConnessioneDB.getConnessione()) {
-            String sqlAnnuncio = "CREATE TABLE IF NOT EXISTS " + TABLE_NAME + " (" +
-                    "id SERIAL PRIMARY KEY, " +
-                    "titolo VARCHAR(255) NOT NULL, " +
-                    "oggetto_id INTEGER NOT NULL REFERENCES oggetto(id) ON DELETE CASCADE, " +
-                    "prezzo DECIMAL(10,2) NOT NULL, " +
-                    "in_evidenza BOOLEAN NOT NULL DEFAULT false, " +
-                    "tipologia VARCHAR(50) NOT NULL CHECK (tipologia IN ('VENDITA', 'SCAMBIO', 'REGALO', 'ASTA')), " +
-                    "modalita_consegna VARCHAR(100) NOT NULL, " +
-                    "stato VARCHAR(50) NOT NULL DEFAULT 'ATTIVO', " +
-                    "CHECK (stato IN ('ATTIVO', 'VENDUTO', 'RITIRATO', 'SCADUTO')), " +
-                    "venditore_id INTEGER NOT NULL REFERENCES utente(id) ON DELETE CASCADE, " +
-                    "data_pubblicazione TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
-                    "image_url TEXT, " +
-                    "descrizione TEXT)";
-
-            String sqlCaratteristiche = "CREATE TABLE IF NOT EXISTS " + CARATTERISTICHE_TABLE + " (" +
-                    "annuncio_id INTEGER NOT NULL REFERENCES " + TABLE_NAME + "(id) ON DELETE CASCADE, " +
-                    "caratteristica VARCHAR(255) NOT NULL, " +
-                    "valore VARCHAR(255), " +
-                    "PRIMARY KEY (annuncio_id, caratteristica))";
-
-            try (PreparedStatement stmt1 = conn.prepareStatement(sqlAnnuncio);
-                 PreparedStatement stmt2 = conn.prepareStatement(sqlCaratteristiche)) {
-                stmt1.execute();
-                stmt2.execute();
-                System.out.println("✅ Tabelle annuncio verificate/create");
-            }
-        } catch (SQLException e) {
-            System.err.println("❌ Errore nella creazione delle tabelle per Annuncio");
-            e.printStackTrace();
-        }
-    }
-
     // Inserisce un annuncio completo con oggetto associato
     public int inserisciAnnuncioComplessivo(Annuncio annuncio, int venditoreId) throws SQLException {
         annuncio.setVenditoreId(venditoreId);
@@ -67,22 +26,12 @@ public class AnnuncioDAO {
             annuncio.getOggetto().setOrigine(OrigineOggetto.USATO);
         }
 
-        // ✅ DEBUG prima del salvataggio
-        System.out.println("=== PRIMA DEL SALVATAGGIO ANNUNCIO ===");
-        System.out.println("📝 Titolo annuncio: '" + annuncio.getTitolo() + "'");
-        System.out.println("📦 Oggetto: " + annuncio.getOggetto());
-        System.out.println("💰 Prezzo: " + annuncio.getPrezzo());
-        System.out.println("🎯 Tipologia: " + annuncio.getTipologia());
-        
         int oggettoId = OggettoDAO.salvaOggetto(annuncio.getOggetto());
 
         if (oggettoId != -1) {
-            System.out.println("✅ Oggetto salvato con ID: " + oggettoId);
             int annuncioId = creaAnnuncioConValidazione(annuncio, oggettoId);
-            System.out.println("✅ Annuncio salvato con ID: " + annuncioId);
             return annuncioId;
         } else {
-            System.out.println("❌ Errore nel salvataggio dell'oggetto");
             return -1;
         }
     }
@@ -194,7 +143,6 @@ public class AnnuncioDAO {
                 stmt.addBatch();
             }
             stmt.executeBatch();
-            System.out.println("✅ Caratteristiche speciali inserite: " + caratteristiche.size());
         }
     }
 
@@ -221,12 +169,10 @@ public class AnnuncioDAO {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     Annuncio annuncio = mapResultSetToAnnuncio(rs);
-                    System.out.println("✅ Annuncio recuperato - Titolo: '" + annuncio.getTitolo() + "'");
                     return annuncio;
                 }
             }
         }
-        System.out.println("❌ Annuncio non trovato con ID: " + id);
         return null;
     }
 
@@ -262,16 +208,12 @@ public class AnnuncioDAO {
 
             while (rs.next()) {
                 int annuncioId = rs.getInt("annuncio_id");
-                String titolo = rs.getString("titolo");
-                System.out.println("📋 Caricamento annuncio ID: " + annuncioId + " - Titolo: '" + titolo + "'");
-                
                 Annuncio annuncio = getAnnuncioById(annuncioId);
                 if (annuncio != null) {
                     annunci.add(annuncio);
                 }
             }
         }
-        System.out.println("✅ Caricati " + annunci.size() + " annunci attivi");
         return annunci;
     }
 
@@ -283,11 +225,7 @@ public class AnnuncioDAO {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, nuovoStato);
             stmt.setInt(2, annuncioId);
-            boolean risultato = stmt.executeUpdate() > 0;
-            if (risultato) {
-                System.out.println("✅ Stato annuncio " + annuncioId + " aggiornato a: " + nuovoStato);
-            }
-            return risultato;
+            return stmt.executeUpdate() > 0;
         }
     }
 
@@ -298,11 +236,7 @@ public class AnnuncioDAO {
         try (Connection conn = ConnessioneDB.getConnessione();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, annuncioId);
-            boolean risultato = stmt.executeUpdate() > 0;
-            if (risultato) {
-                System.out.println("✅ Annuncio " + annuncioId + " eliminato");
-            }
-            return risultato;
+            return stmt.executeUpdate() > 0;
         }
     }
     
@@ -373,7 +307,6 @@ public class AnnuncioDAO {
                     immagineFile = null;
                 }
             } catch (Exception e) {
-                System.err.println("Immagine non trovata: " + imageUrl);
                 immagineFile = null;
             }
         }
@@ -467,8 +400,6 @@ public class AnnuncioDAO {
                         // 3. Aggiorna le caratteristiche
                         aggiornaCaratteristiche(conn, annuncio.getId(), annuncio.getCaratteristicheSpeciali());
                         conn.commit();
-                        
-                        System.out.println("✅ Annuncio aggiornato con titolo: '" + annuncio.getTitolo() + "'");
                         return true;
                     }
                 }
@@ -516,7 +447,6 @@ public class AnnuncioDAO {
                 }
             }
         }
-        System.out.println("✅ Caricati " + annunci.size() + " annunci per venditore " + venditoreId);
         return annunci;
     }
 
@@ -542,7 +472,6 @@ public class AnnuncioDAO {
                 }
             }
         }
-        System.out.println("✅ Trovati " + annunci.size() + " annunci per ricerca: '" + query + "'");
         return annunci;
     }
 
@@ -572,7 +501,6 @@ public class AnnuncioDAO {
                 }
             }
         }
-        System.out.println("✅ Trovati " + annunci.size() + " annunci per categoria: '" + categoria + "'");
         return annunci;
     }
 
@@ -596,7 +524,6 @@ public class AnnuncioDAO {
                 }
             }
         }
-        System.out.println("✅ Caricati " + annunci.size() + " annunci in evidenza");
         return annunci;
     }
 

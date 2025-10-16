@@ -37,13 +37,10 @@ public class Main extends Application {
     // Metodo di inizializzazione dell'applicazione, eseguito prima dello start
     @Override
     public void init() {
-        // Questo metodo viene chiamato PRIMA di start()
-        System.out.println("🚀 Inizializzazione applicazione...");
         
         try {
             // Inizializza il database
             ConnessioneDB.getConnessione();
-            System.out.println("✅ Connessione al database stabilita");
             
             // Registra tutti i trigger
             AnnuncioTrigger.registraTuttiITrigger();
@@ -207,22 +204,34 @@ public class Main extends Application {
         radice.getChildren().add(controlloLogin);
     }
 
-    // Mostra la schermata di registrazione
+ // Mostra la schermata di registrazione
     private void mostraSchermataRegistrazione() {
         if (radice == null) return;
         
         radice.getChildren().clear();
         controlloRegistrazione = new ControlloRegistrazione();
         
-        // Configurazione aziones
+        // Configurazione azioni
         controlloRegistrazione.setOnLoginAction(this::mostraSchermataLogin);
         controlloRegistrazione.setOnRegistrazioneSuccess(() -> {
-            String emailRegistrata = controlloRegistrazione.getEmail();
-            mostraSchermataLogin();
-            
-            if (controlloLogin != null && emailRegistrata != null) {
-                controlloLogin.setEmail(emailRegistrata);
-                mostraTooltipFeedback();
+            // DOPO REGISTRAZIONE SUCCESSO, VAI DIRETTAMENTE ALL'APPLICAZIONE PRINCIPALE
+            utente utenteRegistrato = SessionManager.getCurrentUser();
+            if (utenteRegistrato != null) {
+                // Imposta i dati utente nella TopBar
+                topBar.setDatiUtente(
+                    utenteRegistrato.getNome(), 
+                    utenteRegistrato.getEmail()
+                );
+                mostraSchermataPrincipale(utenteRegistrato.getMatricola());
+                
+            } else {
+                // Fallback: se per qualche motivo SessionManager non ha l'utente
+                String emailRegistrata = controlloRegistrazione.getEmail();
+                mostraSchermataLogin();
+                if (controlloLogin != null && emailRegistrata != null) {
+                    controlloLogin.setEmail(emailRegistrata);
+                    mostraTooltipFeedback();
+                }
             }
         });
         
@@ -311,7 +320,6 @@ public class Main extends Application {
     
     // Metodo main - punto di ingresso dell'applicazione
     public static void main(String[] args) {
-        System.out.println("🎯 Avvio Marketplace Universitario");
         try {
             launch(args);
         } catch (Exception e) {

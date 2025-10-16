@@ -28,7 +28,6 @@ public class ProductGrid {
      * Crea la struttura principale della griglia dei prodotti.
      */
     public VBox creaProductGrid() {
-        System.out.println("[DEBUG] Inizializzazione ProductGrid...");
 
         container = new VBox();
         container.setId("productGridContainer");
@@ -45,7 +44,6 @@ public class ProductGrid {
         emptyContainer = creaEmptyContainer();
 
         container.getChildren().add(productGrid);
-        System.out.println("[DEBUG] ProductGrid inizializzata con griglia vuota.");
         return container;
     }
 
@@ -54,7 +52,6 @@ public class ProductGrid {
      */
     public void mostraLoading() {
         Platform.runLater(() -> {
-            System.out.println("[DEBUG] Mostro schermata di caricamento...");
             container.getChildren().setAll(loadingContainer);
         });
     }
@@ -64,8 +61,7 @@ public class ProductGrid {
      */
     public void nascondiLoading() {
         Platform.runLater(() -> {
-            System.out.println("[DEBUG] Nascondo schermata di caricamento, mostro griglia prodotti...");
-            container.getChildren().setAll(productGrid);
+        	container.getChildren().setAll(productGrid);
         });
     }
 
@@ -74,7 +70,6 @@ public class ProductGrid {
      */
     public void mostraStatoVuoto() {
         Platform.runLater(() -> {
-            System.out.println("[DEBUG] Nessun annuncio trovato. Mostro stato vuoto.");
             container.getChildren().setAll(emptyContainer);
         });
     }
@@ -102,19 +97,16 @@ public class ProductGrid {
     public void aggiornaAnnunci(List<Annuncio> annunci) {
         Platform.runLater(() -> {
             if (annunci == null || annunci.isEmpty()) {
-                System.out.println("[DEBUG] aggiornaAnnunci: lista nulla o vuota.");
                 mostraStatoVuoto();
                 return;
             }
 
-            System.out.println("[DEBUG] aggiornaAnnunci: caricamento " + annunci.size() + " annunci.");
             productGrid.getChildren().clear();
 
             for (Annuncio annuncio : annunci) {
                 String nomeOggetto = annuncio.getOggetto() != null
                         ? annuncio.getOggettoPrincipale().getNome()
                         : "Oggetto sconosciuto";
-                System.out.println("[DEBUG] Aggiungo card per annuncio: " + nomeOggetto);
 
                 ProductCard card = new ProductCard(annuncio);
                 card.setOnDetailsAction(onDetailsAction);
@@ -126,7 +118,6 @@ public class ProductGrid {
             }
 
             container.getChildren().setAll(productGrid);
-            System.out.println("[DEBUG] Numero totale card visualizzate: " + productGrid.getChildren().size());
         });
     }
 
@@ -135,7 +126,6 @@ public class ProductGrid {
      */
     public void aggiornaCardAnnuncio(Annuncio annuncioModificato) {
         Platform.runLater(() -> {
-            System.out.println("[DEBUG] Aggiornamento card per annuncio ID: " + annuncioModificato.getId());
             
             // Cerca la card esistente e la sostituisce
             for (int i = 0; i < productGrid.getChildren().size(); i++) {
@@ -152,7 +142,6 @@ public class ProductGrid {
                         
                         // Sostituisce la vecchia card con quella nuova
                         productGrid.getChildren().set(i, newCard);
-                        System.out.println("[DEBUG] Card aggiornata per annuncio ID: " + annuncioModificato.getId());
                         break;
                     }
                 }

@@ -167,11 +167,6 @@ public class ControlloRegistrazione extends BorderPane {
 
     private void mostraConfermaRegistrazione() {
         Platform.runLater(() -> {
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Registrazione Completata");
-            alert.setHeaderText(null);
-            alert.setContentText("Registrazione avvenuta con successo!\nOra puoi effettuare il login.");
-            alert.showAndWait();
             if (onRegistrazioneSuccess != null) onRegistrazioneSuccess.run();
         });
     }

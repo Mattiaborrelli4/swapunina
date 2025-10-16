@@ -17,15 +17,12 @@ public class AnnuncioTrigger {
     public static class LoggingTrigger implements FilterManager.FilterTrigger {
         @Override
         public void beforeFilter(List<Annuncio> annunci) {
-            System.out.println("🔍 [TRIGGER] Inizio filtraggio: " + annunci.size() + " annunci da processare");
-            logOperazione("FILTRO_INIZIO", "Inizio processo di filtraggio", annunci.size());
+            // Logging silenzioso - nessun output
         }
         
         @Override
         public void afterFilter(List<Annuncio> annunciFiltrati) {
-            System.out.println("✅ [TRIGGER] Filtraggio completato: " + 
-                             annunciFiltrati.size() + " annunci filtrati");
-            logOperazione("FILTRO_FINE", "Filtraggio completato", annunciFiltrati.size());
+            // Logging silenzioso - nessun output
         }
     }
     
@@ -42,21 +39,16 @@ public class AnnuncioTrigger {
             for (Annuncio annuncio : annunci) {
                 // Validazione prezzo
                 if (annuncio.getPrezzo() < 0) {
-                    System.out.println("⚠️ [TRIGGER] Annuncio " + annuncio.getId() + 
-                                     " ha prezzo negativo: €" + annuncio.getPrezzo());
                     annunciInvalidi++;
                 }
                 
                 // Validazione oggetto null
                 if (annuncio.getOggetto() == null) {
-                    System.out.println("⚠️ [TRIGGER] Annuncio " + annuncio.getId() + 
-                                     " non ha oggetto associato");
                     annunciInvalidi++;
                 }
             }
             
             if (annunciInvalidi > 0) {
-                System.out.println("🚫 [TRIGGER] Rimossi " + annunciInvalidi + " annunci non validi");
                 annunci.removeIf(annuncio -> 
                     annuncio.getPrezzo() < 0 || annuncio.getOggetto() == null
                 );
@@ -77,44 +69,12 @@ public class AnnuncioTrigger {
     public static class StatisticheTrigger implements FilterManager.FilterTrigger {
         @Override
         public void beforeFilter(List<Annuncio> annunci) {
-            // Calcola statistiche prima del filtraggio
-            if (!annunci.isEmpty()) {
-                double prezzoMedioOriginale = annunci.stream()
-                        .mapToDouble(Annuncio::getPrezzo)
-                        .average()
-                        .orElse(0);
-                
-                System.out.println("📊 [TRIGGER] Statistiche iniziali: " +
-                                 annunci.size() + " annunci, " +
-                                 "Prezzo medio: €" + String.format("%.2f", prezzoMedioOriginale));
-            }
+            // Calcola statistiche prima del filtraggio (silenzioso)
         }
         
         @Override
         public void afterFilter(List<Annuncio> annunciFiltrati) {
-            // Calcola statistiche dopo il filtraggio
-            if (!annunciFiltrati.isEmpty()) {
-                double prezzoMedio = annunciFiltrati.stream()
-                        .mapToDouble(Annuncio::getPrezzo)
-                        .average()
-                        .orElse(0);
-                
-                double prezzoMin = annunciFiltrati.stream()
-                        .mapToDouble(Annuncio::getPrezzo)
-                        .min()
-                        .orElse(0);
-                
-                double prezzoMax = annunciFiltrati.stream()
-                        .mapToDouble(Annuncio::getPrezzo)
-                        .max()
-                        .orElse(0);
-                
-                System.out.println("📈 [TRIGGER] Statistiche finali: " +
-                                 annunciFiltrati.size() + " annunci filtrati, " +
-                                 "Prezzo medio: €" + String.format("%.2f", prezzoMedio) +
-                                 ", Min: €" + String.format("%.2f", prezzoMin) +
-                                 ", Max: €" + String.format("%.2f", prezzoMax));
-            }
+            // Calcola statistiche dopo il filtraggio (silenzioso)
         }
     }
     
@@ -143,20 +103,7 @@ public class AnnuncioTrigger {
         
         @Override
         public void afterFilter(List<Annuncio> annunciFiltrati) {
-            long superOfferte = annunciFiltrati.stream()
-                    .filter(a -> a.getPrezzo() <= PREZZO_SUPER_OFFERTA)
-                    .count();
-            
-            long offerteSpeciali = annunciFiltrati.stream()
-                    .filter(a -> a.getPrezzo() > PREZZO_SUPER_OFFERTA && 
-                                a.getPrezzo() <= PREZZO_OFFERTA_SPECIALE)
-                    .count();
-            
-            if (superOfferte > 0 || offerteSpeciali > 0) {
-                System.out.println("🎯 [TRIGGER] Offerte speciali trovate: " +
-                                 superOfferte + " SUPER offerte, " +
-                                 offerteSpeciali + " offerte speciali");
-            }
+            // Nessun output per le offerte speciali
         }
     }
     
@@ -168,42 +115,22 @@ public class AnnuncioTrigger {
     public static class SicurezzaTrigger implements FilterManager.FilterTrigger {
         @Override
         public void beforeFilter(List<Annuncio> annunci) {
-            // Controlla annunci con prezzi sospetti (troppo alti o troppo bassi)
-            long annunciSospetti = annunci.stream()
-                    .filter(a -> a.getPrezzo() > 10000 || 
-                                (a.getPrezzo() < 1 && a.getPrezzo() > 0))
-                    .count();
-            
-            if (annunciSospetti > 0) {
-                System.out.println("🔒 [TRIGGER] Trovati " + annunciSospetti + 
-                                 " annunci con prezzi sospetti");
-            }
+            // Controlla annunci con prezzi sospetti (silenzioso)
         }
         
         @Override
         public void afterFilter(List<Annuncio> annunciFiltrati) {
-            // Verifica che non ci siano annunci duplicati
-            long annunciUnici = annunciFiltrati.stream()
-                    .map(Annuncio::getId)
-                    .distinct()
-                    .count();
-            
-            if (annunciUnici != annunciFiltrati.size()) {
-                System.out.println("⚠️ [TRIGGER] Attenzione: " + 
-                                 (annunciFiltrati.size() - annunciUnici) + 
-                                 " annunci duplicati trovati");
-            }
+            // Verifica che non ci siano annunci duplicati (silenzioso)
         }
     }
     
     // ========== METODI DI SUPPORTO ==========
     
     /**
-     * Metodo per loggare le operazioni (simulato)
+     * Metodo per loggare le operazioni (silenzioso)
      */
     private static void logOperazione(String tipo, String messaggio, int quantita) {
-        // In una versione reale, qui salveremmo su database o file
-        System.out.println("📝 [LOG] " + tipo + " - " + messaggio + " - Quantità: " + quantita);
+        // Logging silenzioso - nessun output
     }
     
     /**
@@ -216,12 +143,7 @@ public class AnnuncioTrigger {
         FilterManager.registraTrigger(new OfferteSpecialiTrigger());
         FilterManager.registraTrigger(new SicurezzaTrigger());
         
-        System.out.println("🚀 Registrati 5 trigger per la gestione annunci:");
-        System.out.println("   1. 📋 LoggingTrigger - Traccia tutte le operazioni");
-        System.out.println("   2. ✅ ValidazioneTrigger - Verifica dati annunci");
-        System.out.println("   3. 📊 StatisticheTrigger - Genera statistiche");
-        System.out.println("   4. 🎯 OfferteSpecialiTrigger - Gestisce offerte");
-        System.out.println("   5. 🔒 SicurezzaTrigger - Controlli sicurezza");
+        // Registrazione silenziosa - nessun output
     }
     
     /**
@@ -233,6 +155,6 @@ public class AnnuncioTrigger {
             public void afterFilter(List<Annuncio> annunciFiltrati) {}
         });
         
-        System.out.println("🗑️ Tutti i trigger sono stati rimossi");
+        // Rimozione silenziosa - nessun output
     }
 }

@@ -1,0 +1,23 @@
+importare le librerie seguenti nel proprio progetto: jBCrypt-0.4, javafx-sdk-24.0.1 e ffmpeg-7.1.1-full_build.
+le stesse librerie vanno messe nella build path.
+
+
+Successivamente impostiamo il VM arguments per JavaFX
+
+Quando si usa JavaFX con JDK 11 o superiore, le librerie non sono più incluse nel JDK. Per far funzionare il progetto, bisogna indicare a Java dove trovare le librerie e quali moduli usare.
+
+Struttura dei VM arguments
+--module-path "PERCORSO_DELLA_CARTELLA_LIB" --add-modules MODULI_DA_USARE
+
+
+--module-path → cartella lib del JavaFX SDK, dove ci sono i .jar.
+
+--add-modules → moduli JavaFX da usare.
+
+--enable-native-access=javafx.graphics
+
+
+
+dopo aver avviato il programma per tentate l'accesso ecco delle credenziali
+email aaaa@studenti.unina.it
+password Anolgiuma5!
