@@ -11,12 +11,17 @@ import application.DB.AnnuncioDAO;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CarrelloManager {
     private static CarrelloManager instance;
     private CarrelloDAO carrelloDAO;
     private ContoDAO contoDAO;
+    
+    // Mappa per mantenere lo stato di selezione degli articoli
+    private Map<Integer, Boolean> statiSelezione = new HashMap<>();
     
     // CLASSE INTERNA CarrelloItem con proprietà selected
     public static class CarrelloItem {
@@ -25,14 +30,14 @@ public class CarrelloManager {
         private double prezzo;
         private int quantita;
         private Annuncio annuncio;
-        private boolean selected; // ✅ NUOVO: stato selezione
+        private boolean selected;
         
         public CarrelloItem(int annuncioId, String titolo, double prezzo, int quantita) {
             this.annuncioId = annuncioId;
             this.titolo = titolo;
             this.prezzo = prezzo;
             this.quantita = quantita;
-            this.selected = true; // ✅ DEFAULT: selezionato
+            this.selected = true;
         }
         
         public CarrelloItem(Annuncio annuncio, int quantita) {
@@ -41,7 +46,7 @@ public class CarrelloManager {
             this.prezzo = annuncio.getPrezzo();
             this.quantita = quantita;
             this.annuncio = annuncio;
-            this.selected = true; // ✅ DEFAULT: selezionato
+            this.selected = true;
         }
         
         // Getter e Setter
@@ -60,21 +65,17 @@ public class CarrelloManager {
         public Annuncio getAnnuncio() { return annuncio; }
         public void setAnnuncio(Annuncio annuncio) { this.annuncio = annuncio; }
         
-        // ✅ NUOVO: Getter e Setter per selected
         public boolean isSelected() { return selected; }
         public void setSelected(boolean selected) { this.selected = selected; }
         
-        // ✅ NUOVO: Metodo per calcolare il subtotale
         public double getSubtotale() {
             return prezzo * quantita;
         }
         
-        // ✅ NUOVO: Metodo per formattare il subtotale
         public String getSubtotaleFormattato() {
             return String.format("€%.2f", getSubtotale());
         }
         
-        // ✅ NUOVO: Metodo per formattare il prezzo
         public String getPrezzoFormattato() {
             return String.format("€%.2f", prezzo);
         }
@@ -92,12 +93,53 @@ public class CarrelloManager {
         return instance;
     }
     
-    // ✅ METODO: Ottiene l'ID utente corrente (sempre fresco)
+    // Metodo per sincronizzare gli stati di selezione
+    private void sincronizzaStatiSelezione(List<CarrelloItem> nuoviItems) {
+        for (CarrelloItem item : nuoviItems) {
+            // Se l'articolo è già presente nella mappa, usa il suo stato
+            // Altrimenti, inizializza come selezionato
+            if (statiSelezione.containsKey(item.getAnnuncioId())) {
+                item.setSelected(statiSelezione.get(item.getAnnuncioId()));
+            } else {
+                statiSelezione.put(item.getAnnuncioId(), true);
+                item.setSelected(true);
+            }
+        }
+        
+        // Rimuovi dalla mappa gli articoli che non sono più nel carrello
+        List<Integer> articoliDaRimuovere = new ArrayList<>();
+        for (Integer annuncioId : statiSelezione.keySet()) {
+            boolean presente = false;
+            for (CarrelloItem item : nuoviItems) {
+                if (item.getAnnuncioId() == annuncioId) {
+                    presente = true;
+                    break;
+                }
+            }
+            if (!presente) {
+                articoliDaRimuovere.add(annuncioId);
+            }
+        }
+        
+        for (Integer annuncioId : articoliDaRimuovere) {
+            statiSelezione.remove(annuncioId);
+        }
+    }
+    
+    // Metodo per aggiornare lo stato di selezione di un articolo
+    public void aggiornaStatoSelezione(int annuncioId, boolean selected) {
+        statiSelezione.put(annuncioId, selected);
+    }
+    
+    // Metodo per ottenere lo stato di selezione di un articolo
+    public boolean getStatoSelezione(int annuncioId) {
+        return statiSelezione.getOrDefault(annuncioId, true);
+    }
+    
     private int getCurrentUserId() {
         return SessionManager.getCurrentUserId();
     }
     
-    // ✅ METODO: Verifica se l'utente è loggato
     private boolean isUserLoggedIn() {
         return getCurrentUserId() > 0;
     }
@@ -198,12 +240,16 @@ public class CarrelloManager {
         return carrelloDAO.getCarrelloPerUtente(utenteId);
     }
     
+    // METODO getCarrelloItems UNICO E CORRETTO
     public List<CarrelloItem> getCarrelloItems() {
         List<CarrelloItem> result = new ArrayList<>();
         int utenteId = getCurrentUserId();
         if (utenteId <= 0) return result;
         
         List<application.Classe.CarrelloItem> itemsDB = carrelloDAO.getCarrelloPerUtente(utenteId);
+        
+        List<CarrelloItem> nuoviItems = new ArrayList<>();
+        
         for (application.Classe.CarrelloItem itemDB : itemsDB) {
             CarrelloItem uiItem = new CarrelloItem(
                 itemDB.getAnnuncio().getId(),
@@ -212,9 +258,23 @@ public class CarrelloManager {
                 itemDB.getQuantita()
             );
             uiItem.setAnnuncio(itemDB.getAnnuncio());
-            result.add(uiItem);
+            nuoviItems.add(uiItem);
         }
-        return result;
+        
+        // Sincronizza gli stati di selezione
+        sincronizzaStatiSelezione(nuoviItems);
+        
+        return nuoviItems;
+    }
+
+    // Metodo helper per trovare un item per ID
+    private CarrelloItem trovaItemPerId(List<CarrelloItem> items, int annuncioId) {
+        for (CarrelloItem item : items) {
+            if (item.getAnnuncioId() == annuncioId) {
+                return item;
+            }
+        }
+        return null;
     }
     
     public void svuotaCarrello() {
@@ -297,6 +357,7 @@ public class CarrelloManager {
     public void selezionaTutti(boolean selezionato) {
         List<CarrelloItem> tuttiItems = getCarrelloItems();
         for (CarrelloItem item : tuttiItems) {
+            statiSelezione.put(item.getAnnuncioId(), selezionato);
             item.setSelected(selezionato);
         }
     }
@@ -305,13 +366,7 @@ public class CarrelloManager {
      * Seleziona/deseleziona un articolo specifico
      */
     public void selezionaArticolo(int annuncioId, boolean selezionato) {
-        List<CarrelloItem> tuttiItems = getCarrelloItems();
-        for (CarrelloItem item : tuttiItems) {
-            if (item.getAnnuncioId() == annuncioId) {
-                item.setSelected(selezionato);
-                break;
-            }
-        }
+        statiSelezione.put(annuncioId, selezionato);
     }
     
     /**
@@ -320,7 +375,9 @@ public class CarrelloManager {
     public void invertiSelezione() {
         List<CarrelloItem> tuttiItems = getCarrelloItems();
         for (CarrelloItem item : tuttiItems) {
-            item.setSelected(!item.isSelected());
+            boolean nuovoStato = !item.isSelected();
+            item.setSelected(nuovoStato);
+            statiSelezione.put(item.getAnnuncioId(), nuovoStato);
         }
     }
     
@@ -328,13 +385,7 @@ public class CarrelloManager {
      * Verifica se un articolo è selezionato
      */
     public boolean isArticoloSelezionato(int annuncioId) {
-        List<CarrelloItem> tuttiItems = getCarrelloItems();
-        for (CarrelloItem item : tuttiItems) {
-            if (item.getAnnuncioId() == annuncioId) {
-                return item.isSelected();
-            }
-        }
-        return false;
+        return statiSelezione.getOrDefault(annuncioId, true);
     }
     
     /**
@@ -412,6 +463,8 @@ public class CarrelloManager {
             boolean success = carrelloDAO.rimuoviDalCarrello(utenteId, item.getAnnuncioId());
             if (success) {
                 countRimossi++;
+                // Rimuovi anche dalla mappa di selezione
+                statiSelezione.remove(item.getAnnuncioId());
             }
         }
         
@@ -431,14 +484,15 @@ public class CarrelloManager {
         int utenteId = getCurrentUserId();
         if (utenteId <= 0) return false;
         
-        return carrelloDAO.rimuoviDalCarrello(utenteId, annuncioId);
+        boolean success = carrelloDAO.rimuoviDalCarrello(utenteId, annuncioId);
+        if (success) {
+            statiSelezione.remove(annuncioId);
+        }
+        return success;
     }
     
     // ==================== METODI CHECKOUT ====================
     
-    /**
-     * Effettua il checkout solo degli articoli selezionati
-     */
     /**
      * Effettua il checkout solo degli articoli selezionati
      */
@@ -449,7 +503,6 @@ public class CarrelloManager {
             return false;
         }
         
-        // ✅ CORRETTO: Usa getCarrelloItemsSelezionati() invece di getCarrelloConQuantita()
         List<CarrelloItem> selezionati = getCarrelloItemsSelezionati();
         if (selezionati.isEmpty()) {
             mostraAlertErrore("Errore", "Seleziona gli articoli da acquistare");
@@ -481,17 +534,14 @@ public class CarrelloManager {
             System.out.println("[DEBUG] Checkout selezionati per utente ID: " + utenteId);
             System.out.println("[DEBUG] Numero articoli selezionati: " + selezionati.size());
             
-            // ✅ CORRETTO: Itera su selezionati invece di getCarrelloConQuantita()
             for (CarrelloItem item : selezionati) {
                 Annuncio annuncio = item.getAnnuncio();
                 
-                // ✅ DEBUG: Informazioni articolo
                 System.out.println("[DEBUG] Processando articolo selezionato: " + annuncio.getTitolo() + 
                                  " | Venditore ID: " + annuncio.getVenditoreId() +
                                  " | Quantità: " + item.getQuantita() +
                                  " | Prezzo: " + annuncio.getPrezzo());
                 
-                // ✅ CONTROLLO: Verifica che l'annuncio abbia un venditore ID valido
                 if (annuncio.getVenditoreId() <= 0) {
                     System.err.println("[DEBUG] ❌ Venditore ID non valido per: " + annuncio.getTitolo());
                     articoliNonProcessati.add(annuncio.getTitolo() + " (venditore non valido)");
@@ -535,9 +585,6 @@ public class CarrelloManager {
             }
             
             if (successoCompleto || !articoliProcessati.isEmpty()) {
-                // ✅ CORRETTO: Non svuotare tutto il carrello, solo gli articoli processati
-                // (già rimossi individualmente nel loop sopra)
-                
                 String messaggio = "Acquisto completato con successo!\n" +
                     "Totale speso: €" + String.format("%.2f", totaleSelezionati) + "\n" +
                     "Nuovo saldo: €" + String.format("%.2f", getSaldoUtente());
@@ -561,7 +608,7 @@ public class CarrelloManager {
             }
             
         } catch (Exception e) {
-            mostraAlertErrore("Errore", "Si è verificato un errore durante il checkout: " + e.getMessage());
+            mostraAlertErrore("Errore", "Si è verificato un errore durante el checkout: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -782,8 +829,7 @@ public class CarrelloManager {
     }
     
     /**
-     * ✅ AGGIUNTO: Metodo per compatibilità - verifica se l'utente può acquistare tutto il carrello
-     * (Mantenuto per compatibilità con codice esistente)
+     * Metodo per compatibilità - verifica se l'utente può acquistare tutto il carrello
      */
     public boolean puòAcquistare() {
         int utenteId = getCurrentUserId();
@@ -791,11 +837,10 @@ public class CarrelloManager {
         
         double totale = getTotale();
         return contoDAO.verificaSaldoSufficiente(utenteId, BigDecimal.valueOf(totale));
- 
     }
     
     /**
-     * ✅ AGGIUNTO: Metodo per debug - mostra articoli selezionati vs totali
+     * Metodo per debug - mostra articoli selezionati vs totali
      */
     public void debugSelezione() {
         int utenteId = getCurrentUserId();

@@ -36,6 +36,7 @@ public class ControlloLogin extends BorderPane {
 
     public ControlloLogin() {
         getStyleClass().add("pannello-radice");
+        setPrefSize(Double.MAX_VALUE, Double.MAX_VALUE);
         initializeUI();
     }
 

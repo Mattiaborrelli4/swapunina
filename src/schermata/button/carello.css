@@ -1,0 +1,279 @@
+/* carello.css - Stile per il carrello JavaFX con selezione persistente */
+
+/* Container principale */
+.container {
+    -fx-background-color: #f5f5f5;
+    -fx-padding: 20px;
+}
+
+.cart-container {
+    -fx-spacing: 10px;
+    -fx-padding: 15px;
+    -fx-background-color: transparent;
+}
+
+/* Tabella carrello */
+.cart-table {
+    -fx-min-height: 400px;
+    -fx-max-height: infinity;
+    -fx-border-color: #ddd;
+    -fx-border-width: 1px;
+    -fx-background-color: white;
+}
+
+.cart-row {
+    -fx-border-color: #e0e0e0;
+    -fx-border-width: 0 0 1 0;
+}
+
+.cart-row:selected {
+    -fx-background-color: #f0f8ff;
+    -fx-border-color: #007bff;
+    -fx-border-width: 0 0 0 3px;
+}
+
+.cart-row:hover {
+    -fx-background-color: #f8f9fa;
+}
+
+/* Colonne della tabella */
+.item-column {
+    -fx-alignment: center-left;
+}
+
+.price-column, .subtotal-column {
+    -fx-alignment: center-right;
+}
+
+.quantity-column {
+    -fx-alignment: center;
+}
+
+.actions-column {
+    -fx-alignment: center;
+}
+
+.price-cell, .subtotal-cell {
+    -fx-font-weight: bold;
+    -fx-text-fill: #2c3e50;
+}
+
+/* ✅ SISTEMA DI SELEZIONE MIGLIORATO */
+.selection-container {
+    -fx-pref-width: 24px;
+    -fx-pref-height: 24px;
+    -fx-alignment: center;
+    -fx-cursor: hand;
+    -fx-padding: 3px;
+}
+
+.selection-box {
+    -fx-width: 18px;
+    -fx-height: 18px;
+    -fx-arc-width: 4px;
+    -fx-arc-height: 4px;
+    -fx-stroke: #adb5bd;
+    -fx-stroke-width: 2px;
+    -fx-fill: white; /* ✅ Default bianco */
+}
+
+/* ✅ IMPORTANTE: Queste classi vengono applicate dal codice Java */
+.selection-container-selected .selection-box {
+    -fx-fill: #007bff !important;
+    -fx-stroke: #0056b3 !important;
+}
+
+.selection-container-unselected .selection-box {
+    -fx-fill: white !important;
+    -fx-stroke: #adb5bd !important;
+}
+
+.check-mark {
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-visible: false;
+}
+
+.selection-container-selected .check-mark {
+    -fx-visible: true;
+}
+
+/* Pulsanti azione */
+.actions-box {
+    -fx-spacing: 10px;
+    -fx-padding: 10 0 10 0;
+    -fx-alignment: center-left;
+}
+
+.select-all-button {
+    -fx-background-color: #28a745;
+    -fx-text-fill: white;
+    -fx-padding: 8px 15px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-border-radius: 4px;
+}
+
+.deselect-all-button {
+    -fx-background-color: #6c757d;
+    -fx-text-fill: white;
+    -fx-padding: 8px 15px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-border-radius: 4px;
+}
+
+.remove-selected-button {
+    -fx-background-color: #ffc107;
+    -fx-text-fill: black;
+    -fx-padding: 8px 15px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-border-radius: 4px;
+}
+
+.remove-button {
+    -fx-background-color: #dc3545;
+    -fx-text-fill: white;
+    -fx-font-size: 11px;
+    -fx-padding: 5px 10px;
+    -fx-cursor: hand;
+    -fx-border-radius: 3px;
+}
+
+/* Riepilogo */
+.summary-box {
+    -fx-spacing: 20px;
+    -fx-padding: 15px;
+    -fx-alignment: center-left;
+}
+
+.summary-container {
+    -fx-border-color: #dee2e6;
+    -fx-border-width: 1px;
+    -fx-background-color: #f8f9fa;
+    -fx-padding: 15px;
+    -fx-spacing: 20px;
+    -fx-alignment: center-left;
+    -fx-border-radius: 5px;
+}
+
+.total-label, .balance-label {
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+}
+
+.total-value {
+    -fx-font-weight: bold;
+    -fx-font-size: 18px;
+    -fx-text-fill: #dc3545;
+}
+
+.balance-value {
+    -fx-font-size: 12px;
+    -fx-text-fill: #28a745;
+}
+
+/* Checkout */
+.checkout-box {
+    -fx-padding: 15 0 0 0;
+    -fx-alignment: center-right;
+}
+
+.checkout-button {
+    -fx-padding: 12px 24px;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-cursor: hand;
+    -fx-border-radius: 25px;
+}
+
+.checkout-button-enabled {
+    -fx-background-color: #28a745;
+    -fx-text-fill: white;
+}
+
+.checkout-button-disabled {
+    -fx-background-color: #6c757d;
+    -fx-text-fill: white;
+}
+
+/* Messaggi */
+.alert {
+    -fx-border-color: #ddd;
+    -fx-border-width: 1px;
+}
+
+.alert.confirmation {
+    -fx-background-color: #d4edda;
+    -fx-text-fill: #155724;
+}
+
+.alert.error {
+    -fx-background-color: #f8d7da;
+    -fx-text-fill: #721c24;
+}
+
+/* Placeholder tabella vuota */
+.table-view .placeholder .label {
+    -fx-text-fill: #6c757d;
+    -fx-font-style: italic;
+}
+
+/* Hover effects */
+.button:hover {
+    -fx-scale-x: 1.02;
+    -fx-scale-y: 1.02;
+}
+
+.remove-button:hover {
+    -fx-background-color: #c82333;
+}
+
+.select-all-button:hover {
+    -fx-background-color: #218838;
+}
+
+.deselect-all-button:hover {
+    -fx-background-color: #5a6268;
+}
+
+.remove-selected-button:hover {
+    -fx-background-color: #e0a800;
+}
+
+.checkout-button-enabled:hover {
+    -fx-background-color: #218838;
+}
+
+.selection-container:hover .selection-box {
+    -fx-stroke: #007bff;
+    -fx-scale-x: 1.1;
+    -fx-scale-y: 1.1;
+}
+
+/* Header della tabella */
+.table-view .column-header {
+    -fx-background-color: #f8f9fa;
+    -fx-border-color: #dee2e6;
+    -fx-border-width: 0 0 1 0;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: #495057;
+    -fx-font-weight: bold;
+}
+
+/* Scrollbar */
+.table-view .scroll-bar:vertical {
+    -fx-background-color: #f8f9fa;
+}
+
+.table-view .scroll-bar:vertical .thumb {
+    -fx-background-color: #adb5bd;
+}
+
+.table-view .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #6c757d;
+}
