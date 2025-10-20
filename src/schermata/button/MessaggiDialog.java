@@ -10,9 +10,14 @@ import application.DB.MessaggioDAO;
 import javafx.geometry.Insets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Dialog per la gestione della messaggistica tra utenti
+ * Supporta conversazioni sia relative ad annunci che conversazioni dirette
+ */
 public class MessaggiDialog extends Dialog<Void> {
     private final Annuncio annuncio;
     private final int currentUserId;
@@ -23,10 +28,31 @@ public class MessaggiDialog extends Dialog<Void> {
     private TextArea rispostaArea;
     private String messaggioIniziale;
 
+    // Costanti per configurazione UI
+    private static final int DIALOG_MIN_WIDTH = 500;
+    private static final int DIALOG_MIN_HEIGHT = 400;
+    private static final int LISTVIEW_PREF_HEIGHT = 300;
+    private static final int TEXTAREA_PREF_ROWS = 3;
+    private static final int PADDING = 15;
+    private static final int SPACING = 10;
+    private static final String TIME_FORMAT = "HH:mm";
+    private static final String DEFAULT_PROMPT = "Scrivi la tua risposta...";
+
+    /**
+     * Costruttore per conversazione relativa ad un annuncio
+     * @param annuncio Annuncio di riferimento per la conversazione
+     * @param currentUserId ID dell'utente corrente
+     */
     public MessaggiDialog(Annuncio annuncio, int currentUserId) {
         this(annuncio, currentUserId, null);
     }
     
+    /**
+     * Costruttore per conversazione relativa ad un annuncio con messaggio iniziale
+     * @param annuncio Annuncio di riferimento per la conversazione
+     * @param currentUserId ID dell'utente corrente
+     * @param messaggioIniziale Messaggio precompilato nell'area di risposta
+     */
     public MessaggiDialog(Annuncio annuncio, int currentUserId, String messaggioIniziale) {
         this.annuncio = annuncio;
         this.currentUserId = currentUserId;
@@ -38,10 +64,23 @@ public class MessaggiDialog extends Dialog<Void> {
         initializeUI();
     }
     
+    /**
+     * Costruttore per conversazione diretta tra utenti
+     * @param currentUserId ID dell'utente corrente
+     * @param interlocutoreId ID dell'interlocutore
+     * @param interlocutoreNome Nome dell'interlocutore
+     */
     public MessaggiDialog(int currentUserId, int interlocutoreId, String interlocutoreNome) {
         this(currentUserId, interlocutoreId, interlocutoreNome, null);
     }
     
+    /**
+     * Costruttore per conversazione diretta con messaggio iniziale
+     * @param currentUserId ID dell'utente corrente
+     * @param interlocutoreId ID dell'interlocutore
+     * @param interlocutoreNome Nome dell'interlocutore
+     * @param messaggioIniziale Messaggio precompilato nell'area di risposta
+     */
     public MessaggiDialog(int currentUserId, int interlocutoreId, String interlocutoreNome, String messaggioIniziale) {
         this.annuncio = null;
         this.currentUserId = currentUserId;
@@ -53,82 +92,238 @@ public class MessaggiDialog extends Dialog<Void> {
         initializeUI();
     }
 
+    /**
+     * Inizializza l'interfaccia utente del dialog
+     */
     private void initializeUI() {
-        if (annuncio != null) {
-            setTitle("Messaggi con " + interlocutoreNome + " - " + annuncio.getTitolo());
-        } else {
-            setTitle("Messaggi con " + interlocutoreNome);
-        }
-        
-        // Lista messaggi
-        messaggiList = new ListView<>();
-        messaggiList.setPrefHeight(300);
-        caricaMessaggi();
+        setupDialogProperties();
+        setupMessageList();
+        setupResponseArea();
+        setupMainLayout();
+        setupEventHandlers();
+    }
 
-        // Area risposta
+    /**
+     * Configura le proprietà base del dialog
+     */
+    private void setupDialogProperties() {
+        setTitle(generateDialogTitle());
+        getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        getDialogPane().setMinWidth(DIALOG_MIN_WIDTH);
+        getDialogPane().setMinHeight(DIALOG_MIN_HEIGHT);
+    }
+
+    /**
+     * Genera il titolo del dialog in base al contesto
+     */
+    private String generateDialogTitle() {
+        if (annuncio != null) {
+            return "Messaggi con " + interlocutoreNome + " - " + annuncio.getTitolo();
+        } else {
+            return "Messaggi con " + interlocutoreNome;
+        }
+    }
+
+    /**
+     * Configura la lista dei messaggi
+     */
+    private void setupMessageList() {
+        messaggiList = new ListView<>();
+        messaggiList.setPrefHeight(LISTVIEW_PREF_HEIGHT);
+        loadMessages();
+    }
+
+    /**
+     * Configura l'area di risposta
+     */
+    private void setupResponseArea() {
         rispostaArea = new TextArea();
-        rispostaArea.setPromptText("Scrivi la tua risposta...");
-        rispostaArea.setPrefRowCount(3);
+        rispostaArea.setPromptText(DEFAULT_PROMPT);
+        rispostaArea.setPrefRowCount(TEXTAREA_PREF_ROWS);
         
-        // Imposta il messaggio iniziale se fornito
         if (messaggioIniziale != null) {
             rispostaArea.setText(messaggioIniziale);
         }
+    }
 
+    /**
+     * Configura il layout principale
+     */
+    private void setupMainLayout() {
+        HBox responseBox = createResponseBox();
+        VBox content = createContentBox(responseBox);
+        getDialogPane().setContent(content);
+    }
+
+    /**
+     * Crea il box per l'area di risposta e il pulsante invia
+     */
+    private HBox createResponseBox() {
         Button inviaBtn = new Button("Invia");
-        HBox rispostaBox = new HBox(10, rispostaArea, inviaBtn);
+        HBox rispostaBox = new HBox(SPACING, rispostaArea, inviaBtn);
         rispostaBox.setPadding(new Insets(10, 0, 0, 0));
         HBox.setHgrow(rispostaArea, Priority.ALWAYS);
+        return rispostaBox;
+    }
 
-        VBox content = new VBox(10, messaggiList, rispostaBox);
-        content.setPadding(new Insets(15));
+    /**
+     * Crea il box contenitore principale
+     */
+    private VBox createContentBox(HBox responseBox) {
+        VBox content = new VBox(SPACING, messaggiList, responseBox);
+        content.setPadding(new Insets(PADDING));
+        return content;
+    }
 
-        getDialogPane().setContent(content);
-        getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        
-        // Imposta dimensioni minime sul DialogPane
-        getDialogPane().setMinWidth(500);
-        getDialogPane().setMinHeight(400);
+    /**
+     * Configura gli event handler per i componenti UI
+     */
+    private void setupEventHandlers() {
+        setupSendButtonHandler();
+        setupEnterKeyHandler();
+    }
 
-        // Gestione eventi
-        inviaBtn.setOnAction(e -> {
-            if (!rispostaArea.getText().isEmpty()) {
-                inviaMessaggio(rispostaArea.getText());
-                rispostaArea.clear();
-                caricaMessaggi(); // Ricarica i messaggi
+    /**
+     * Configura l'handler per il pulsante invia
+     */
+    private void setupSendButtonHandler() {
+        Button inviaBtn = (Button) getDialogPane().lookup(".button");
+        if (inviaBtn != null) {
+            inviaBtn.setOnAction(e -> handleSendMessage());
+        }
+    }
+
+    /**
+     * Configura l'handler per il tasto Enter nell'area di testo
+     */
+    private void setupEnterKeyHandler() {
+        rispostaArea.setOnKeyPressed(event -> {
+            switch (event.getCode()) {
+                case ENTER:
+                    if (event.isShiftDown()) {
+                        // Shift+Enter: nuova riga
+                        rispostaArea.appendText("\n");
+                    } else {
+                        // Enter: invia messaggio
+                        event.consume();
+                        handleSendMessage();
+                    }
+                    break;
+                default:
+                    break;
             }
         });
     }
 
-    private void caricaMessaggi() {
+    /**
+     * Gestisce l'invio del messaggio
+     */
+    private void handleSendMessage() {
+        String testo = rispostaArea.getText().trim();
+        if (!testo.isEmpty()) {
+            sendMessage(testo);
+            rispostaArea.clear();
+            loadMessages(); // Ricarica i messaggi
+        }
+    }
+
+    /**
+     * Carica i messaggi della conversazione
+     */
+    private void loadMessages() {
         messaggiList.getItems().clear();
         
-        // Recupera i messaggi dal database
-        List<Messaggio> messaggi = messaggioDAO.getConversazione(currentUserId, interlocutoreId);
-        
-        // Filtra i messaggi per annuncio se disponibile
-        if (annuncio != null) {
-            messaggi = messaggi.stream()
-                .filter(msg -> msg.getAnnuncioId() != null && msg.getAnnuncioId().equals(annuncio.getId()))
-                .collect(Collectors.toList());
-        }
+        List<Messaggio> messaggi = getFilteredMessages();
         
         for (Messaggio msg : messaggi) {
-            String prefisso = (msg.getMittenteId() == currentUserId) ? "Tu: " : interlocutoreNome + ": ";
-            String timestamp = msg.getDataInvio().format(DateTimeFormatter.ofPattern("HH:mm"));
-            messaggiList.getItems().add("[" + timestamp + "] " + prefisso + msg.getTesto());
+            String formattedMessage = formatMessage(msg);
+            messaggiList.getItems().add(formattedMessage);
         }
         
-        // Scroll automatico all'ultimo messaggio
+        scrollToLatestMessage();
+    }
+
+    /**
+     * Ottiene e filtra i messaggi in base al contesto
+     */
+    private List<Messaggio> getFilteredMessages() {
+        if (annuncio != null) {
+            // Usa il metodo specifico per gli annunci
+            return messaggioDAO.getConversazionePerAnnuncio(currentUserId, interlocutoreId, annuncio.getId());
+        } else {
+            // Conversazione diretta
+            return messaggioDAO.getConversazione(currentUserId, interlocutoreId);
+        }
+    }
+
+    /**
+     * Filtra i messaggi per annuncio specifico (metodo alternativo)
+     */
+    private List<Messaggio> filterMessagesByAnnuncio(List<Messaggio> messaggi) {
+        List<Messaggio> filtered = new ArrayList<>();
+        for (Messaggio msg : messaggi) {
+            if (msg.getAnnuncioId() == null) {
+                // Includi messaggi senza annuncio (potrebbero essere vecchi)
+                filtered.add(msg);
+            } else if (msg.getAnnuncioId().equals(annuncio.getId())) {
+                // Includi messaggi con l'annuncio corretto
+                filtered.add(msg);
+            }
+        }
+        return filtered;
+    }
+
+    /**
+     * Formatta un singolo messaggio per la visualizzazione
+     */
+    private String formatMessage(Messaggio msg) {
+        String prefisso = getMessagePrefix(msg);
+        String timestamp = formatTimestamp(msg);
+        return "[" + timestamp + "] " + prefisso + msg.getTesto();
+    }
+
+    /**
+     * Determina il prefisso del messaggio in base al mittente
+     */
+    private String getMessagePrefix(Messaggio msg) {
+        return (msg.getMittenteId() == currentUserId) ? "Tu: " : interlocutoreNome + ": ";
+    }
+
+    /**
+     * Formatta il timestamp del messaggio
+     */
+    private String formatTimestamp(Messaggio msg) {
+        return msg.getDataInvio().format(DateTimeFormatter.ofPattern(TIME_FORMAT));
+    }
+
+    /**
+     * Scorri automaticamente all'ultimo messaggio
+     */
+    private void scrollToLatestMessage() {
         if (!messaggiList.getItems().isEmpty()) {
             messaggiList.scrollTo(messaggiList.getItems().size() - 1);
         }
     }
 
-    private void inviaMessaggio(String testo) {
+    /**
+     * Invia un nuovo messaggio
+     */
+    private void sendMessage(String testo) {
         Integer annuncioId = (annuncio != null) ? annuncio.getId() : null;
         
-        Messaggio nuovoMsg = new Messaggio(
+        Messaggio nuovoMsg = createMessage(testo, annuncioId);
+        boolean successo = messaggioDAO.inviaMessaggio(nuovoMsg);
+        
+        if (!successo) {
+            showErrorMessage();
+        }
+    }
+
+    /**
+     * Crea un nuovo oggetto Messaggio
+     */
+    private Messaggio createMessage(String testo, Integer annuncioId) {
+        return new Messaggio(
             0, // ID verrà generato dal database
             currentUserId,
             interlocutoreId,
@@ -136,22 +331,23 @@ public class MessaggiDialog extends Dialog<Void> {
             LocalDateTime.now(),
             annuncioId
         );
-        
-        boolean successo = messaggioDAO.inviaMessaggio(nuovoMsg);
-        
-        if (!successo) {
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Errore");
-            alert.setHeaderText(null);
-            alert.setContentText("Impossibile inviare il messaggio. Riprova più tardi.");
-            alert.showAndWait();
-        } else {
-            // Ricarica i messaggi dopo l'invio
-            caricaMessaggi();
-        }
+    }
+
+    /**
+     * Mostra un messaggio di errore in caso di fallimento nell'invio
+     */
+    private void showErrorMessage() {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Errore");
+        alert.setHeaderText(null);
+        alert.setContentText("Impossibile inviare il messaggio. Riprova più tardi.");
+        alert.showAndWait();
     }
     
-    // Metodo per impostare il messaggio iniziale dopo la creazione
+    /**
+     * Imposta il messaggio iniziale nell'area di risposta
+     * @param messaggioIniziale Il messaggio da precompilare
+     */
     public void setMessaggioIniziale(String messaggioIniziale) {
         this.messaggioIniziale = messaggioIniziale;
         if (rispostaArea != null) {

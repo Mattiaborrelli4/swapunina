@@ -1,14 +1,13 @@
 package schermata;
 
 import application.DB.AnnuncioDAO;
-import application.DB.UtentiDAO;
 import application.Classe.Annuncio;
 import application.Classe.Oggetto;
+import application.Classe.utente;
 import application.Enum.Categoria;
 import application.Enum.OrigineOggetto;
 import application.Enum.Tipologia;
 import application.messagistica.ChatListDialog;
-import application.messagistica.ChatListScreen;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
@@ -28,27 +27,37 @@ import application.DB.FilterManager;
 import application.DB.OggettoDAO;
 import application.DB.SessionManager;
 
+/**
+ * SchermataPrincipale - Schermata principale dell'applicazione Marketplace
+ * Gestisce la visualizzazione, filtraggio e gestione degli annunci
+ */
 public class SchermataPrincipale extends BorderPane {
 
+    // Componenti UI
     private final TopBar topBar;
     private final CategoryMenu categoryMenu = new CategoryMenu();
     private final ProductGrid productGrid = new ProductGrid();
-
     private final FilterBar filterBar = new FilterBar();
 
+    // Gestori dati
     private final AnnuncioDAO annuncioDAO = new AnnuncioDAO();
     private List<Annuncio> tuttiGliAnnunci;
     private List<Annuncio> annunciFiltrati;
 
-    private String nomeUtente;
+    // Stato applicazione
     private Stage palcoscenicoPrincipale;
     private Categoria categoriaSelezionata;
     private Tipologia tipologiaSelezionata;
     private String ordinamento = "recent";
     private String queryRicerca = "";
 
-    public SchermataPrincipale(String nomeUtente, Stage palcoscenicoPrincipale, TopBar topBar) {
-        this.nomeUtente = nomeUtente;
+    /**
+     * Costruttore principale della schermata
+     * @param matricolaUtente Matricola dell'utente corrente
+     * @param palcoscenicoPrincipale Stage principale dell'applicazione
+     * @param topBar Riferimento alla top bar dell'applicazione
+     */
+    public SchermataPrincipale(String matricolaUtente, Stage palcoscenicoPrincipale, TopBar topBar) {
         this.palcoscenicoPrincipale = palcoscenicoPrincipale;
         this.topBar = topBar;
         initializeUI();
@@ -56,6 +65,9 @@ public class SchermataPrincipale extends BorderPane {
         loadAnnunci();
     }
 
+    /**
+     * Inizializza l'interfaccia utente principale
+     */
     private void initializeUI() {
         getStyleClass().add("main-layout");
 
@@ -75,6 +87,9 @@ public class SchermataPrincipale extends BorderPane {
         setCenter(scrollPane);
     }
 
+    /**
+     * Configura tutti gli event handler della schermata
+     */
     private void setupEventHandlers() {
         // Search handler
         topBar.setOnSearch(this::handleSearch);
@@ -102,45 +117,52 @@ public class SchermataPrincipale extends BorderPane {
         productGrid.setOnDetailsAction(this::showProductDetails);
         productGrid.setOnOfferAction(this::handleOffer);
         
-        // ✅ NUOVO: Collega il callback per l'aggiornamento
+        // Callback per l'aggiornamento degli annunci modificati
         productGrid.setOnAnnuncioModificato(this::handleAnnuncioModificato);
 
         // Insert ad handler
         topBar.setOnInserisciAnnuncio(this::handleInsertAd);
-        topBar.setOnMessages(this::handleMessages);
     }
 
-    // ✅ NUOVO METODO: Gestisce l'aggiornamento degli annunci modificati
+    /**
+     * Gestisce l'aggiornamento di un annuncio modificato
+     * @param annuncioModificato L'annuncio con i dati aggiornati
+     */
     private void handleAnnuncioModificato(Annuncio annuncioModificato) {
         System.out.println("🔄 Annuncio modificato ricevuto, aggiorno la card...");
         productGrid.aggiornaCardAnnuncio(annuncioModificato);
     }
 
+    /**
+     * Gestisce l'inserimento di un nuovo annuncio
+     */
     private void handleInsertAd() {
         try {
-            UtentiDAO utentiDAO = new UtentiDAO();
-            int userId = utentiDAO.getIdDaUsername(nomeUtente);
-
-            if (userId == -1) {
-                showError("Utente non trovato!");
+            // Ottieni l'utente corrente dalla SessionManager
+            utente currentUser = SessionManager.getCurrentUser();
+            
+            if (currentUser == null || currentUser.getId() <= 0) {
+                showError("Utente non trovato! Effettua il login.");
                 return;
             }
+
+            int userId = currentUser.getId();
 
             InserisciAnnuncioDialog dialog = new InserisciAnnuncioDialog(userId);
             dialog.showAndWait().ifPresent(adData -> {
                 try {
-                	// Prima verifica se l'oggetto esiste già nel DB e recupera il suo ID
-                	int oggettoId = OggettoDAO.recuperaIdOggettoEsistente(adData.getOggetto());
+                    // Verifica se l'oggetto esiste già nel DB e recupera il suo ID
+                    int oggettoId = OggettoDAO.recuperaIdOggettoEsistente(adData.getOggetto());
 
-                	Oggetto oggetto = new Oggetto(
-                	    oggettoId,
-                	    adData.getOggetto().getNome(),
-                	    adData.getOggetto().getDescrizione(),
-                	    adData.getOggetto().getCategoria(),
-                	    adData.getOggetto().getImageUrl(),
-                	    adData.getOggetto().getImmagine(),
-                	    OrigineOggetto.USATO
-                	);
+                    Oggetto oggetto = new Oggetto(
+                        oggettoId,
+                        adData.getOggetto().getNome(),
+                        adData.getOggetto().getDescrizione(),
+                        adData.getOggetto().getCategoria(),
+                        adData.getOggetto().getImageUrl(),
+                        adData.getOggetto().getImmagine(),
+                        OrigineOggetto.USATO
+                    );
 
                     Annuncio nuovoAnnuncio = new Annuncio(
                         oggetto,
@@ -150,10 +172,11 @@ public class SchermataPrincipale extends BorderPane {
                         userId
                     );
 
-                    int result = annuncioDAO.inserisciAnnuncioComplessivo(nuovoAnnuncio, userId);
+                    // Il metodo inserisciAnnuncioComplessivo restituisce long, usiamo direttamente long
+                    long result = annuncioDAO.inserisciAnnuncioComplessivo(nuovoAnnuncio, userId);
                     
                     if (result > 0) {
-                        showSuccess("Annuncio pubblicato con successo!");
+                        showSuccess("Annuncio pubblicato con successo! ID: " + result);
                         refresh();
                     } else {
                         showError("Errore durante la pubblicazione dell'annuncio");
@@ -169,6 +192,9 @@ public class SchermataPrincipale extends BorderPane {
         }
     }
 
+    /**
+     * Carica gli annunci dal database in modo asincrono
+     */
     private void loadAnnunci() {
         productGrid.mostraLoading();
 
@@ -178,9 +204,9 @@ public class SchermataPrincipale extends BorderPane {
                 try {
                     AnnuncioDAO dao = new AnnuncioDAO();
                     return dao.getAnnunciAttivi();
-                } catch (SQLException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
-                    throw new RuntimeException("Errore nel caricamento degli annunci", e);
+                    throw new RuntimeException("Errore nel caricamento degli annunci: " + e.getMessage(), e);
                 }
             }
 
@@ -209,6 +235,9 @@ public class SchermataPrincipale extends BorderPane {
         new Thread(loadTask).start();
     }
 
+    /**
+     * Applica i filtri correnti alla lista degli annunci
+     */
     private void applyFilters() {
         if (tuttiGliAnnunci == null) {
             System.out.println("[DEBUG] tuttiGliAnnunci è null");
@@ -240,37 +269,81 @@ public class SchermataPrincipale extends BorderPane {
             productGrid.aggiornaAnnunci(annunciFiltrati);
         }
         
-        // Aggiorna il conteggio nella filterBar
-        int count = FilterManager.contaAnnunciFiltrati(
+        // CORREZIONE: Gestione corretta del tipo long
+        long countLong = FilterManager.contaAnnunciFiltrati(
             tuttiGliAnnunci, 
             categoriaSelezionata, 
             tipologiaSelezionata, 
             queryRicerca
         );
+        
+        // Conversione sicura da long a int
+        int count = convertLongToIntSafely(countLong);
         filterBar.updateCount(count);
     }
 
+    /**
+     * Converte in modo sicuro un long in int, gestendo eventuali overflow
+     */
+    private int convertLongToIntSafely(long value) {
+        if (value > Integer.MAX_VALUE) {
+            System.err.println("Warning: valore long " + value + " eccede Integer.MAX_VALUE, usando valore massimo int");
+            return Integer.MAX_VALUE;
+        } else if (value < Integer.MIN_VALUE) {
+            System.err.println("Warning: valore long " + value + " inferiore a Integer.MIN_VALUE, usando valore minimo int");
+            return Integer.MIN_VALUE;
+        }
+        return (int) value;
+    }
+
+    /**
+     * Gestisce la ricerca degli annunci
+     * @param query Testo da cercare negli annunci
+     */
     private void handleSearch(String query) {
         this.queryRicerca = query;
         applyFilters();
     }
 
+    /**
+     * Mostra i dettagli di un prodotto
+     * @param annuncio L'annuncio di cui mostrare i dettagli
+     */
     private void showProductDetails(Annuncio annuncio) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(annuncio.getOggetto().getNome());
-        alert.setHeaderText("Prezzo: €" + String.format("%.2f", annuncio.getPrezzo()));
-        alert.setContentText(
-            "Categoria: " + annuncio.getOggetto().getCategoria().toString() + "\n" +
-            "Tipologia: " + annuncio.getTipologia().toString() + "\n\n" +
-            "Descrizione:\n" + annuncio.getOggetto().getDescrizione()
-        );
-        alert.showAndWait();
+        try {
+            DettagliProdottoView dettagliView = new DettagliProdottoView(annuncio);
+            dettagliView.mostra();
+        } catch (Exception e) {
+            // Fallback a Alert semplice in caso di errore
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(annuncio.getTitolo() != null ? annuncio.getTitolo() : "Dettagli Prodotto");
+            alert.setHeaderText("Prezzo: " + annuncio.getPrezzoFormattato());
+            
+            String descrizione = annuncio.getDescrizione() != null ? 
+                annuncio.getDescrizione() : 
+                "Nessuna descrizione disponibile";
+                
+            alert.setContentText(
+                "Categoria: " + (annuncio.getCategoria() != null ? annuncio.getCategoria() : "Non specificata") + "\n" +
+                "Tipologia: " + annuncio.getTipologia().toString() + "\n\n" +
+                "Descrizione:\n" + descrizione
+            );
+            alert.showAndWait();
+        }
     }
 
+    /**
+     * Gestisce l'invio di un'offerta per un annuncio
+     * @param annuncio L'annuncio per cui inviare l'offerta
+     */
     private void handleOffer(Annuncio annuncio) {
-        showSuccess("Hai inviato un'offerta per: " + annuncio.getOggetto().getNome());
+        showSuccess("Hai inviato un'offerta per: " + 
+                   (annuncio.getTitolo() != null ? annuncio.getTitolo() : annuncio.getOggetto().getNome()));
     }
 
+    /**
+     * Crea l'header della schermata principale
+     */
     private Node createHeader() {
         VBox header = new VBox(10);
         header.getStyleClass().add("header-section");
@@ -285,32 +358,49 @@ public class SchermataPrincipale extends BorderPane {
         return header;
     }
 
+    /**
+     * Mostra un alert di errore
+     */
     private void showError(String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Errore");
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Errore");
+            alert.setHeaderText(null);
+            alert.setContentText(message);
+            alert.showAndWait();
+        });
     }
 
+    /**
+     * Mostra un alert di successo
+     */
     private void showSuccess(String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Successo");
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Successo");
+            alert.setHeaderText(null);
+            alert.setContentText(message);
+            alert.showAndWait();
+        });
     }
 
+    /**
+     * Ricarica gli annunci
+     */
     public void refresh() {
         loadAnnunci();
     }
 
+    /**
+     * Restituisce la categoria attualmente selezionata
+     */
     public Categoria getCategoria() {
         return categoriaSelezionata;
     }
     
-
-    // Metodo handleMessages nella schermata principale
+    /**
+     * Gestisce l'apertura della schermata messaggi
+     */
     private void handleMessages() {
         try {
             // Verifica se l'utente è loggato
@@ -327,6 +417,9 @@ public class SchermataPrincipale extends BorderPane {
         }
     }
 
+    /**
+     * Mostra un alert generico
+     */
     private void showAlert(String title, String message) {
         Platform.runLater(() -> {
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -340,5 +433,28 @@ public class SchermataPrincipale extends BorderPane {
             
             alert.showAndWait();
         });
+    }
+
+    /**
+     * Ottiene il numero totale di annunci caricati
+     */
+    public int getTotalAnnunci() {
+        return tuttiGliAnnunci != null ? tuttiGliAnnunci.size() : 0;
+    }
+
+    /**
+     * Ottiene il numero di annunci filtrati
+     */
+    public int getAnnunciFiltrati() {
+        return annunciFiltrati != null ? annunciFiltrati.size() : 0;
+    }
+
+    /**
+     * Pulisce le risorse quando la schermata viene chiusa
+     */
+    public void cleanup() {
+        // CORREZIONE: Rimossa chiamata a metodo inesistente
+        // Non chiamiamo productGrid.cleanup() perché non esiste
+        System.out.println("Pulizia risorse SchermataPrincipale completata");
     }
 }

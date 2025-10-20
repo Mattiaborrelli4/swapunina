@@ -16,35 +16,70 @@ import java.math.BigDecimal;
 import java.util.Optional;
 
 import application.DB.UtentiDAO;
+import application.DB.CloudinaryService; // Import corretto per il servizio Cloudinary
 
+/**
+ * Dialog per la gestione dell'account utente
+ * 
+ * <p>Questa classe gestisce tutte le funzionalità relative all'account utente:
+ * - Visualizzazione e modifica immagine profilo
+ * - Gestione saldo e ricariche
+ * - Cambio password
+ * - Logout
+ * - Tema chiaro/scuro</p>
+ */
 public class AccountDialog extends Dialog<Void> {
+    
+    // ========== COMPONENTI UI ==========
     private ImageView profileImageView;
-    private boolean darkMode = false;
     private GridPane grid;
-    private String userEmail;
-    private Runnable logoutHandler;
-    private CarrelloManager carrelloManager;
     private Label saldoLabel;
     private ScrollPane scrollPane;
     
+    // ========== GESTIONE STATO ==========
+    private boolean darkMode = false;
+    private String userEmail;
+    
+    // ========== HANDLER PER EVENTI ESTERNI ==========
+    private Runnable logoutHandler;
+    private Runnable profileImageUpdateHandler;
+    
+    // ========== GESTIONE DATI ==========
+    private CarrelloManager carrelloManager;
+    private UtentiDAO utentiDAO;
+    private CloudinaryService cloudinaryService; // Servizio per Cloudinary
+    
+    /**
+     * Costruttore del dialogo account
+     * 
+     * @param nome Nome dell'utente
+     * @param email Email dell'utente
+     * @param userEmail Email per identificare l'utente (chiave primaria)
+     */
     public AccountDialog(String nome, String email, String userEmail) {
         this.userEmail = userEmail;
         this.carrelloManager = CarrelloManager.getInstance();
+        this.utentiDAO = new UtentiDAO();
+        this.cloudinaryService = new CloudinaryService(); // Inizializza Cloudinary
         
         if (userEmail == null || userEmail.isEmpty()) {
             System.out.println("Attenzione: userEmail è null o vuota");
         }
         
+        inizializzaUI(nome, email);
+        caricaFotoProfilo();
+    }
+    
+    /**
+     * Inizializza l'interfaccia utente del dialogo
+     */
+    private void inizializzaUI(String nome, String email) {
         setTitle("Il Tuo Account");
-        
-        // Imposta dimensioni della finestra
-        setWidth(500);
-        setHeight(650);
         
         // Crea il contenuto principale
         VBox mainContent = createMainContent(nome, email);
         
-        // Crea ScrollPane per permettere lo scorrimento
+        // Configura ScrollPane
         scrollPane = new ScrollPane();
         scrollPane.setContent(mainContent);
         scrollPane.setFitToWidth(true);
@@ -66,7 +101,31 @@ public class AccountDialog extends Dialog<Void> {
         aggiornaSaldoDisplay();
     }
     
-    // NUOVO METODO: Crea il contenuto principale dentro lo ScrollPane
+    // ========== METODI PER GLI HANDLER ESTERNI ==========
+    
+    /**
+     * Imposta l'handler per il logout
+     * 
+     * @param handler Runnable da eseguire al logout
+     */
+    public void setOnLogout(Runnable handler) {
+        this.logoutHandler = handler;
+    }
+    
+    /**
+     * Imposta l'handler per l'aggiornamento dell'immagine profilo
+     * 
+     * @param handler Runnable da eseguire quando l'immagine profilo viene aggiornata
+     */
+    public void setOnProfileImageUpdate(Runnable handler) {
+        this.profileImageUpdateHandler = handler;
+    }
+    
+    // ========== CREAZIONE COMPONENTI UI ==========
+    
+    /**
+     * Crea il contenuto principale del dialogo
+     */
     private VBox createMainContent(String nome, String email) {
         VBox mainContent = new VBox();
         mainContent.setSpacing(20);
@@ -81,30 +140,10 @@ public class AccountDialog extends Dialog<Void> {
         grid.setAlignment(Pos.CENTER);
         
         // Container per l'immagine profilo (centrato in alto)
-        VBox imageContainer = new VBox();
-        imageContainer.setAlignment(Pos.CENTER);
-        imageContainer.setPadding(new Insets(0, 0, 20, 0));
+        VBox imageContainer = createImageContainer();
         
-        // Immagine profilo
-        profileImageView = createProfileImage();
-        imageContainer.getChildren().add(profileImageView);
-        
-        // Aggiungi container immagine alla griglia
-        grid.add(imageContainer, 0, 0, 2, 1);
-        
-        // Informazioni account con stile migliorato
-        Label nomeLabel = new Label("Nome:");
-        nomeLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-        Label nomeValue = new Label(nome);
-        nomeValue.setStyle("-fx-font-size: 14px;");
-        
-        Label emailLabel = new Label("Email:");
-        emailLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-        Label emailValue = new Label(email);
-        emailValue.setStyle("-fx-font-size: 14px;");
-        
-        grid.addRow(1, nomeLabel, nomeValue);
-        grid.addRow(2, emailLabel, emailValue);
+        // Informazioni account
+        aggiungiInformazioniAccount(nome, email);
         
         // Sezione Conto
         VBox contoSection = createContoSection();
@@ -124,7 +163,86 @@ public class AccountDialog extends Dialog<Void> {
         return mainContent;
     }
     
-    // NUOVO METODO: Crea la sezione tema
+    /**
+     * Crea il container per l'immagine profilo
+     */
+    private VBox createImageContainer() {
+        VBox imageContainer = new VBox();
+        imageContainer.setAlignment(Pos.CENTER);
+        imageContainer.setPadding(new Insets(0, 0, 20, 0));
+        
+        // Immagine profilo
+        profileImageView = createProfileImage();
+        imageContainer.getChildren().add(profileImageView);
+        
+        // Aggiungi container immagine alla griglia
+        grid.add(imageContainer, 0, 0, 2, 1);
+        
+        return imageContainer;
+    }
+    
+    /**
+     * Aggiunge le informazioni dell'account alla griglia
+     */
+    private void aggiungiInformazioniAccount(String nome, String email) {
+        Label nomeLabel = new Label("Nome:");
+        nomeLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        Label nomeValue = new Label(nome);
+        nomeValue.setStyle("-fx-font-size: 14px;");
+        
+        Label emailLabel = new Label("Email:");
+        emailLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        Label emailValue = new Label(email);
+        emailValue.setStyle("-fx-font-size: 14px;");
+        
+        grid.addRow(1, nomeLabel, nomeValue);
+        grid.addRow(2, emailLabel, emailValue);
+    }
+    
+    /**
+     * Crea la sezione per la gestione del conto
+     */
+    private VBox createContoSection() {
+        VBox contoSection = new VBox(10);
+        contoSection.setAlignment(Pos.CENTER);
+        contoSection.setPadding(new Insets(15));
+        contoSection.setStyle("-fx-background-color: #f8f9fa; -fx-border-radius: 8; -fx-border-color: #e9ecef;");
+        
+        Label titoloConto = new Label("💳 Il Mio Conto");
+        titoloConto.setStyle("-fx-font-weight: bold; -fx-font-size: 16px;");
+        
+        HBox saldoBox = new HBox(10);
+        saldoBox.setAlignment(Pos.CENTER);
+        
+        Label saldoTitolo = new Label("Saldo Attuale:");
+        saldoTitolo.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        
+        saldoLabel = new Label("€0,00");
+        saldoLabel.setStyle("-fx-font-size: 18px; -fx-text-fill: #2e7d32; -fx-font-weight: bold;");
+        
+        saldoBox.getChildren().addAll(saldoTitolo, saldoLabel);
+        
+        Button ricaricaButton = new Button("💰 Ricarica");
+        ricaricaButton.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px 16px;");
+        ricaricaButton.setOnAction(e -> mostraDialogRicarica());
+        
+        HBox pulsantiBox = new HBox(10);
+        pulsantiBox.setAlignment(Pos.CENTER);
+        
+        Button aggiornaButton = new Button("🔄 Aggiorna");
+        aggiornaButton.setStyle("-fx-background-color: #6b7280; -fx-text-fill: white; -fx-padding: 8px 16px;");
+        aggiornaButton.setOnAction(e -> aggiornaSaldoDisplay());
+        
+        pulsantiBox.getChildren().addAll(ricaricaButton, aggiornaButton);
+        
+        contoSection.getChildren().addAll(titoloConto, saldoBox, pulsantiBox);
+        
+        return contoSection;
+    }
+    
+    /**
+     * Crea la sezione per il toggle tema chiaro/scuro
+     */
     private HBox createThemeBox() {
         HBox themeBox = new HBox(10);
         themeBox.setAlignment(Pos.CENTER);
@@ -166,7 +284,9 @@ public class AccountDialog extends Dialog<Void> {
         return themeBox;
     }
     
-    // NUOVO METODO: Crea il container dei pulsanti
+    /**
+     * Crea il container con tutti i pulsanti di azione
+     */
     private VBox createButtonsContainer() {
         VBox buttonsContainer = new VBox(15);
         buttonsContainer.setAlignment(Pos.CENTER);
@@ -196,47 +316,161 @@ public class AccountDialog extends Dialog<Void> {
         buttonsContainer.getChildren().addAll(changeImageButton, changePasswordButton, storicoButton, logoutButton);
         return buttonsContainer;
     }
-
-    // NUOVO METODO: Crea la sezione conto
-    private VBox createContoSection() {
-        VBox contoSection = new VBox(10);
-        contoSection.setAlignment(Pos.CENTER);
-        contoSection.setPadding(new Insets(15));
-        contoSection.setStyle("-fx-background-color: #f8f9fa; -fx-border-radius: 8; -fx-border-color: #e9ecef;");
+    
+    /**
+     * Crea l'immagine profilo con stile circolare
+     */
+    private ImageView createProfileImage() {
+        ImageView imageView = new ImageView();
+        imageView.setFitHeight(120);
+        imageView.setFitWidth(120);
+        imageView.setPreserveRatio(true);
         
-        Label titoloConto = new Label("💳 Il Mio Conto");
-        titoloConto.setStyle("-fx-font-weight: bold; -fx-font-size: 16px;");
+        // Stile per l'immagine circolare con ombra
+        imageView.setStyle("-fx-border-radius: 60px; -fx-border-color: #e0e0e0; -fx-border-width: 3px; " +
+                          "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 10, 0, 0, 4);");
         
-        HBox saldoBox = new HBox(10);
-        saldoBox.setAlignment(Pos.CENTER);
+        // Rendiamo l'immagine circolare
+        Circle clip = new Circle(60, 60, 60);
+        imageView.setClip(clip);
         
-        Label saldoTitolo = new Label("Saldo Attuale:");
-        saldoTitolo.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-        
-        saldoLabel = new Label("€0,00");
-        saldoLabel.setStyle("-fx-font-size: 18px; -fx-text-fill: #2e7d32; -fx-font-weight: bold;");
-        
-        saldoBox.getChildren().addAll(saldoTitolo, saldoLabel);
-        
-        Button ricaricaButton = new Button("💰 Ricarica");
-        ricaricaButton.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px 16px;");
-        ricaricaButton.setOnAction(e -> mostraDialogRicarica());
-        
-        HBox pulsantiBox = new HBox(10);
-        pulsantiBox.setAlignment(Pos.CENTER);
-        
-        Button aggiornaButton = new Button("🔄 Aggiorna");
-        aggiornaButton.setStyle("-fx-background-color: #6b7280; -fx-text-fill: white; -fx-padding: 8px 16px;");
-        aggiornaButton.setOnAction(e -> aggiornaSaldoDisplay());
-        
-        pulsantiBox.getChildren().addAll(ricaricaButton, aggiornaButton);
-        
-        contoSection.getChildren().addAll(titoloConto, saldoBox, pulsantiBox);
-        
-        return contoSection;
+        return imageView;
     }
     
-    // METODO: Mostra dialog per ricarica
+    // ========== GESTIONE IMMAGINE PROFILO ==========
+    
+    /**
+     * Carica la foto profilo dall'URL salvato nel database
+     */
+    private void caricaFotoProfilo() {
+        if (userEmail == null || userEmail.isEmpty()) {
+            System.out.println("⚠️  Impossibile caricare foto profilo: userEmail non disponibile");
+            return;
+        }
+        
+        try {
+            String fotoPath = utentiDAO.getFotoProfilo(userEmail);
+            System.out.println("🔍 Percorso immagine profilo dal DB: " + 
+                (fotoPath != null && fotoPath.length() > 100 ? 
+                 fotoPath.substring(0, 100) + "..." : fotoPath));
+            
+            caricaImmagineProfilo(fotoPath);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Errore nel caricamento foto profilo: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Carica un'immagine profilo da URL (Cloudinary, locale o avatar SVG)
+     */
+    private void caricaImmagineProfilo(String imagePath) {
+        try {
+            Image image;
+            
+            if (imagePath == null || imagePath.isEmpty()) {
+                // Nessuna immagine, usa predefinita
+                image = getDefaultProfileImage();
+                System.out.println("🎨 Usando immagine predefinita");
+            } else if (imagePath.startsWith("data:image/svg+xml")) {
+                // È un avatar SVG generato - carica come data URL
+                System.out.println("🎨 Caricamento avatar SVG univoco");
+                image = new Image(imagePath, 120, 120, true, true, true);
+            } else if (imagePath.contains("cloudinary.com") || imagePath.startsWith("http")) {
+                // È un URL Cloudinary - carica direttamente
+                System.out.println("☁️  Caricamento da Cloudinary: " + imagePath);
+                image = new Image(imagePath, 120, 120, true, true, true);
+            } else {
+                // È un percorso di file locale - converti in URL file
+                System.out.println("💾 Caricamento da file locale: " + imagePath);
+                File file = new File(imagePath);
+                if (file.exists()) {
+                    String fileUrl = file.toURI().toString();
+                    image = new Image(fileUrl, 120, 120, true, true, true);
+                } else {
+                    // File non trovato, usa immagine predefinita
+                    System.err.println("❌ File non trovato: " + imagePath);
+                    image = getDefaultProfileImage();
+                }
+            }
+            
+            if (image != null && !image.isError()) {
+                profileImageView.setImage(image);
+                System.out.println("✅ Immagine profilo caricata con successo");
+            } else {
+                System.err.println("❌ Errore nel caricamento dell'immagine");
+                profileImageView.setImage(getDefaultProfileImage());
+            }
+            
+        } catch (Exception e) {
+            System.err.println("💥 Errore critico nel caricamento immagine profilo: " + e.getMessage());
+            e.printStackTrace();
+            profileImageView.setImage(getDefaultProfileImage());
+        }
+    }
+    
+    /**
+     * Gestisce il cambio dell'immagine profilo con upload su Cloudinary
+     */
+    private void changeProfileImage() {
+        if (userEmail == null || userEmail.isEmpty()) {
+            showAlert("Errore", "Impossibile cambiare l'immagine: email utente non disponibile");
+            return;
+        }
+        
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Seleziona Immagine Profilo");
+        fileChooser.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter("Immagini", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp")
+        );
+        
+        File selectedFile = fileChooser.showOpenDialog((Stage) getDialogPane().getScene().getWindow());
+        if (selectedFile != null) {
+            try {
+                System.out.println("🔄 Inizio upload immagine su Cloudinary...");
+                
+                // Usa UtentiDAO per caricare su Cloudinary e aggiornare il database
+                boolean success = utentiDAO.aggiornaFotoProfilo(userEmail, selectedFile.getAbsolutePath());
+                
+                if (success) {
+                    // Ricarica l'immagine profilo dal database
+                    caricaFotoProfilo();
+                    
+                    // Notifica l'aggiornamento alla TopBar
+                    notificaCambiamentoFotoProfilo();
+                    
+                    showAlert("Successo", "Immagine profilo aggiornata con successo!");
+                    System.out.println("✅ Immagine profilo aggiornata con successo");
+                } else {
+                    showAlert("Errore", "Impossibile aggiornare l'immagine profilo nel database");
+                }
+                
+            } catch (Exception e) {
+                System.err.println("❌ Errore durante l'upload: " + e.getMessage());
+                e.printStackTrace();
+                showAlert("Errore", "Errore durante l'upload: " + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * Notifica il cambiamento della foto profilo alla TopBar
+     */
+    private void notificaCambiamentoFotoProfilo() {
+        if (profileImageUpdateHandler != null) {
+            System.out.println("🔔 Notifica cambio immagine profilo alla TopBar");
+            profileImageUpdateHandler.run();
+        } else {
+            System.err.println("⚠️  Nessun handler per l'aggiornamento dell'immagine profilo");
+        }
+    }
+    
+    // ========== GESTIONE CONTO E SALDO ==========
+    
+    /**
+     * Mostra il dialogo per la ricarica del conto
+     */
     private void mostraDialogRicarica() {
         Dialog<Double> dialog = new Dialog<>();
         dialog.setTitle("Ricarica Conto");
@@ -301,7 +535,9 @@ public class AccountDialog extends Dialog<Void> {
         }
     }
     
-    // METODO: Esegue la ricarica
+    /**
+     * Esegue la ricarica del conto
+     */
     private void eseguiRicarica(double importo, String metodoPagamento) {
         try {
             boolean successo = carrelloManager.ricaricaConto(importo, metodoPagamento);
@@ -327,13 +563,17 @@ public class AccountDialog extends Dialog<Void> {
         }
     }
     
-    // METODO: Aggiorna la visualizzazione del saldo
+    /**
+     * Aggiorna la visualizzazione del saldo
+     */
     private void aggiornaSaldoDisplay() {
         BigDecimal saldo = carrelloManager.getSaldoUtente();
         saldoLabel.setText(String.format("€%.2f", saldo));
     }
     
-    // METODO: Mostra storico movimenti
+    /**
+     * Mostra lo storico dei movimenti del conto
+     */
     private void mostraStoricoMovimenti() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Storico Movimenti");
@@ -387,114 +627,12 @@ public class AccountDialog extends Dialog<Void> {
         alert.getDialogPane().setPrefSize(500, 400);
         alert.showAndWait();
     }
-
-    // Metodo per impostare l'handler del logout
-    public void setOnLogout(Runnable handler) {
-        this.logoutHandler = handler;
-    }
     
-    private Button setupLogoutButton() {
-        Button logoutButton = new Button("🚪 Logout");
-        logoutButton.setStyle("-fx-background-color: #ff4444; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10px 20px;");
-        logoutButton.setOnAction(e -> {
-            System.out.println("Logout effettuato");
-            close(); // Chiude la finestra di dialogo
-            
-            // Esegui l'handler del logout se impostato
-            if (logoutHandler != null) {
-                logoutHandler.run();
-            }
-        });
-        logoutButton.setMaxWidth(Double.MAX_VALUE);
-        return logoutButton;
-    }
+    // ========== GESTIONE PASSWORD ==========
     
-    private void applyTheme() {
-        String backgroundColor = darkMode ? "#2d2d2d" : "white";
-        String textColor = darkMode ? "white" : "black";
-        
-        // Applica il tema allo ScrollPane e al contenuto
-        scrollPane.setStyle("-fx-background: " + backgroundColor + "; -fx-background-color: " + backgroundColor + ";");
-        
-        // Trova il VBox principale dentro lo ScrollPane
-        if (scrollPane.getContent() instanceof VBox) {
-            VBox mainContent = (VBox) scrollPane.getContent();
-            mainContent.setStyle("-fx-background-color: " + backgroundColor + ";");
-            
-            // Applica il tema a tutti i nodi figli
-            applyThemeToNode(mainContent, textColor);
-        }
-        
-        getDialogPane().setStyle("-fx-background-color: " + backgroundColor + ";");
-    }
-    
-    // NUOVO METODO: Applica il tema ricorsivamente a tutti i nodi
-    private void applyThemeToNode(javafx.scene.Node node, String textColor) {
-        if (node instanceof Label) {
-            ((Label) node).setStyle("-fx-text-fill: " + textColor + ";");
-        } else if (node instanceof VBox || node instanceof HBox || node instanceof GridPane) {
-            // Se è un container, applica il tema a tutti i figli
-            if (node instanceof Pane) {
-                for (javafx.scene.Node child : ((Pane) node).getChildren()) {
-                    applyThemeToNode(child, textColor);
-                }
-            }
-        }
-    }
-    
-    private ImageView createProfileImage() {
-        // Immagine predefinita (puoi sostituirla con un'immagine reale)
-        Image image;
-        try {
-            image = new Image("file:default_profile.png");
-        } catch (Exception e) {
-            // Se l'immagine non esiste, crea un'immagine placeholder
-            image = null;
-        }
-        
-        ImageView imageView = new ImageView(image);
-        imageView.setFitHeight(120);
-        imageView.setFitWidth(120);
-        imageView.setPreserveRatio(true);
-        
-        // Stile per l'immagine circolare con ombra
-        imageView.setStyle("-fx-border-radius: 60px; -fx-border-color: #e0e0e0; -fx-border-width: 3px; " +
-                          "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 10, 0, 0, 4);");
-        
-        // Rendiamo l'immagine circolare
-        Circle clip = new Circle(60, 60, 60);
-        imageView.setClip(clip);
-        
-        return imageView;
-    }
-    
-    private void changeProfileImage() {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Seleziona Immagine Profilo");
-        fileChooser.getExtensionFilters().addAll(
-            new FileChooser.ExtensionFilter("Immagini", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp")
-        );
-        
-        File selectedFile = fileChooser.showOpenDialog((Stage) getDialogPane().getScene().getWindow());
-        if (selectedFile != null) {
-            try {
-                Image newImage = new Image(selectedFile.toURI().toString());
-                profileImageView.setImage(newImage);
-                System.out.println("Immagine profilo cambiata: " + selectedFile.getName());
-                
-                // Mostra conferma
-                Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
-                successAlert.setTitle("Successo");
-                successAlert.setHeaderText(null);
-                successAlert.setContentText("Immagine profilo aggiornata con successo!");
-                successAlert.showAndWait();
-                
-            } catch (Exception e) {
-                showAlert("Errore", "Impossibile caricare l'immagine selezionata: " + e.getMessage());
-            }
-        }
-    }
-    
+    /**
+     * Mostra il dialogo per il cambio password
+     */
     private void showChangePasswordDialog() {
         Dialog<Void> passwordDialog = new Dialog<>();
         passwordDialog.setTitle("Cambia Password");
@@ -506,19 +644,17 @@ public class AccountDialog extends Dialog<Void> {
         grid.setPadding(new Insets(25, 25, 25, 25));
         grid.setAlignment(Pos.CENTER);
         
-        // Campo password attuale
+        // Campi per le password
         PasswordField currentPasswordField = new PasswordField();
         currentPasswordField.setPromptText("Password attuale");
         currentPasswordField.setPrefWidth(250);
         currentPasswordField.setStyle("-fx-font-size: 14px;");
         
-        // Campo nuova password
         PasswordField newPasswordField = new PasswordField();
         newPasswordField.setPromptText("Nuova password (min. 6 caratteri)");
         newPasswordField.setPrefWidth(250);
         newPasswordField.setStyle("-fx-font-size: 14px;");
         
-        // Campo conferma password
         PasswordField confirmPasswordField = new PasswordField();
         confirmPasswordField.setPromptText("Conferma nuova password");
         confirmPasswordField.setPrefWidth(250);
@@ -554,6 +690,24 @@ public class AccountDialog extends Dialog<Void> {
         passwordDialog.getDialogPane().setContent(grid);
         
         // Validazione in tempo reale
+        configuraValidazionePassword(newPasswordField, confirmPasswordField, newPasswordError, confirmPasswordError);
+        
+        // Validazione finale al click del pulsante Conferma
+        configuraValidazioneFinale(passwordDialog, confirmButtonType, currentPasswordField, 
+                                 newPasswordField, confirmPasswordField, currentPasswordError, 
+                                 newPasswordError, confirmPasswordError);
+        
+        // Focus sul primo campo all'apertura
+        Platform.runLater(() -> currentPasswordField.requestFocus());
+        
+        passwordDialog.showAndWait();
+    }
+    
+    /**
+     * Configura la validazione in tempo reale per i campi password
+     */
+    private void configuraValidazionePassword(PasswordField newPasswordField, PasswordField confirmPasswordField,
+                                            Label newPasswordError, Label confirmPasswordError) {
         newPasswordField.textProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal.length() > 0 && newVal.length() < 6) {
                 newPasswordError.setText("La password deve essere di almeno 6 caratteri");
@@ -577,8 +731,15 @@ public class AccountDialog extends Dialog<Void> {
                 confirmPasswordError.setText("");
             }
         });
-        
-        // Validazione finale al click del pulsante Conferma
+    }
+    
+    /**
+     * Configura la validazione finale per il cambio password
+     */
+    private void configuraValidazioneFinale(Dialog<Void> passwordDialog, ButtonType confirmButtonType,
+                                          PasswordField currentPasswordField, PasswordField newPasswordField,
+                                          PasswordField confirmPasswordField, Label currentPasswordError,
+                                          Label newPasswordError, Label confirmPasswordError) {
         Button confirmButton = (Button) passwordDialog.getDialogPane().lookupButton(confirmButtonType);
         confirmButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
             boolean isValid = true;
@@ -621,50 +782,139 @@ public class AccountDialog extends Dialog<Void> {
             if (!isValid) {
                 event.consume(); // Blocca la chiusura del dialogo
             } else {
-                // Verifica che userEmail non sia null o vuota
-                if (userEmail == null || userEmail.isEmpty()) {
-                    showAlert("Errore", "Email utente non disponibile. Effettua nuovamente il login.");
-                    event.consume();
-                    return;
-                }
-                
-                try {
-                    // Qui chiami il DAO per aggiornare la password
-                    UtentiDAO utentiDAO = new UtentiDAO();
-                    boolean success = utentiDAO.aggiornaPassword(
-                        userEmail,
-                        currentPasswordField.getText(),
-                        newPasswordField.getText()
-                    );
-                    
-                    if (success) {
-                        showAlert("Successo", "Password cambiata con successo!");
-                        // Pulisci i campi dopo il successo
-                        currentPasswordField.clear();
-                        newPasswordField.clear();
-                        confirmPasswordField.clear();
-                    } else {
-                        currentPasswordError.setText("Password attuale errata");
-                        event.consume();
-                    }
-                } catch (Exception e) {
-                    showAlert("Errore", "Si è verificato un errore durante el cambio password: " + e.getMessage());
-                    event.consume();
-                }
+                eseguiCambioPassword(currentPasswordField, newPasswordField, confirmPasswordField,
+                                   currentPasswordError, event);
             }
         });
-        
-        // Focus sul primo campo all'apertura
-        Platform.runLater(() -> currentPasswordField.requestFocus());
-        
-        passwordDialog.showAndWait();
     }
     
+    /**
+     * Esegue il cambio password nel database
+     */
+    private void eseguiCambioPassword(PasswordField currentPasswordField, PasswordField newPasswordField,
+                                    PasswordField confirmPasswordField, Label currentPasswordError,
+                                    javafx.event.ActionEvent event) {
+        // Verifica che userEmail non sia null o vuota
+        if (userEmail == null || userEmail.isEmpty()) {
+            showAlert("Errore", "Email utente non disponibile. Effettua nuovamente il login.");
+            event.consume();
+            return;
+        }
+        
+        try {
+            // Chiama il DAO per aggiornare la password
+            boolean success = utentiDAO.aggiornaPassword(
+                userEmail,
+                currentPasswordField.getText(),
+                newPasswordField.getText()
+            );
+            
+            if (success) {
+                showAlert("Successo", "Password cambiata con successo!");
+                // Pulisci i campi dopo il successo
+                currentPasswordField.clear();
+                newPasswordField.clear();
+                confirmPasswordField.clear();
+            } else {
+                currentPasswordError.setText("Password attuale errata");
+                event.consume();
+            }
+        } catch (Exception e) {
+            showAlert("Errore", "Si è verificato un errore durante il cambio password: " + e.getMessage());
+            event.consume();
+        }
+    }
+    
+    // ========== GESTIONE LOGOUT ==========
+    
+    /**
+     * Configura il pulsante di logout
+     */
+    private Button setupLogoutButton() {
+        Button logoutButton = new Button("🚪 Logout");
+        logoutButton.setStyle("-fx-background-color: #ff4444; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10px 20px;");
+        logoutButton.setOnAction(e -> {
+            System.out.println("Logout effettuato");
+            close(); // Chiude la finestra di dialogo
+            
+            // Esegui l'handler del logout se impostato
+            if (logoutHandler != null) {
+                logoutHandler.run();
+            }
+        });
+        logoutButton.setMaxWidth(Double.MAX_VALUE);
+        return logoutButton;
+    }
+    
+    // ========== GESTIONE TEMA ==========
+    
+    /**
+     * Applica il tema chiaro/scuro al dialogo
+     */
+    private void applyTheme() {
+        String backgroundColor = darkMode ? "#2d2d2d" : "white";
+        String textColor = darkMode ? "white" : "black";
+        
+        // Applica il tema allo ScrollPane e al contenuto
+        scrollPane.setStyle("-fx-background: " + backgroundColor + "; -fx-background-color: " + backgroundColor + ";");
+        
+        // Trova il VBox principale dentro lo ScrollPane
+        if (scrollPane.getContent() instanceof VBox) {
+            VBox mainContent = (VBox) scrollPane.getContent();
+            mainContent.setStyle("-fx-background-color: " + backgroundColor + ";");
+            
+            // Applica il tema a tutti i nodi figli
+            applyThemeToNode(mainContent, textColor);
+        }
+        
+        getDialogPane().setStyle("-fx-background-color: " + backgroundColor + ";");
+    }
+    
+    /**
+     * Applica il tema ricorsivamente a tutti i nodi
+     */
+    private void applyThemeToNode(javafx.scene.Node node, String textColor) {
+        if (node instanceof Label) {
+            ((Label) node).setStyle("-fx-text-fill: " + textColor + ";");
+        } else if (node instanceof VBox || node instanceof HBox || node instanceof GridPane) {
+            // Se è un container, applica il tema a tutti i figli
+            if (node instanceof Pane) {
+                for (javafx.scene.Node child : ((Pane) node).getChildren()) {
+                    applyThemeToNode(child, textColor);
+                }
+            }
+        }
+    }
+    
+    // ========== UTILITY METHODS ==========
+    
+    /**
+     * Mostra un alert informativo
+     */
     private void showAlert(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+    
+    /**
+     * Restituisce l'immagine profilo predefinita
+     */
+    private Image getDefaultProfileImage() {
+        try {
+            // Prova a caricare un'immagine predefinita
+            Image defaultImage = new Image("file:default_profile.png", 120, 120, true, true, true);
+            if (!defaultImage.isError()) {
+                return defaultImage;
+            }
+        } catch (Exception e) {
+            System.err.println("⚠️  Impossibile caricare l'immagine predefinita: " + e.getMessage());
+        }
+        
+        // Fallback: crea un'immagine placeholder con un cerchio colorato
+        System.out.println("🎨 Usando immagine placeholder predefinita");
+        return null; // JavaFX gestirà l'assenza di immagine
     }
 }

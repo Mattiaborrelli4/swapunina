@@ -1,48 +1,32 @@
 package application.Classe;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Gestisce le statistiche economiche per transazioni e vendite
+ * Fornisce calcoli per min, max, medio, totale e statistiche per categoria
+ */
 public class StatisticheEconomiche {
-    private BigDecimal valoreMin;
-    private BigDecimal valoreMax;
-    private BigDecimal valoreMedio;
-    private BigDecimal totaleVendite;
-    private int numeroTransazioni;
-    private LocalDate periodoInizio;
-    private LocalDate periodoFine;
+    private final BigDecimal valoreMin;
+    private final BigDecimal valoreMax;
+    private final BigDecimal valoreMedio;
+    private final BigDecimal totaleVendite;
+    private final int numeroTransazioni;
+    private final LocalDate periodoInizio;
+    private final LocalDate periodoFine;
 
-    // Wrapper class per differenziare i costruttori
-    public static class FloatValues {
-        public final List<Float> valori;
-        public FloatValues(List<Float> valori) {
-            this.valori = valori;
-        }
-    }
-
-    public static class BigDecimalValues {
-        public final List<BigDecimal> valori;
-        public BigDecimalValues(List<BigDecimal> valori) {
-            this.valori = valori;
-        }
-    }
-
-    // Costruttore per FloatValues
-    public StatisticheEconomiche(FloatValues floatValues, LocalDate periodoInizio, LocalDate periodoFine) {
-        this(convertiFloatABigDecimal(floatValues.valori), periodoInizio, periodoFine);
-    }
-
-    // Costruttore per BigDecimalValues
-    public StatisticheEconomiche(BigDecimalValues bigDecimalValues, LocalDate periodoInizio, LocalDate periodoFine) {
-        this(bigDecimalValues.valori, periodoInizio, periodoFine);
-    }
-
-    // Costruttore privato principale
-    private StatisticheEconomiche(List<BigDecimal> valori, LocalDate periodoInizio, LocalDate periodoFine) {
+    /**
+     * Costruttore principale per lista di BigDecimal
+     */
+    public StatisticheEconomiche(List<BigDecimal> valori, LocalDate periodoInizio, LocalDate periodoFine) {
+        this.periodoInizio = periodoInizio;
+        this.periodoFine = periodoFine;
+        
         if (valori == null || valori.isEmpty()) {
             this.valoreMin = BigDecimal.ZERO;
             this.valoreMax = BigDecimal.ZERO;
@@ -50,28 +34,54 @@ public class StatisticheEconomiche {
             this.totaleVendite = BigDecimal.ZERO;
             this.numeroTransazioni = 0;
         } else {
-            this.valoreMin = valori.stream().min(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
-            this.valoreMax = valori.stream().max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
-            this.totaleVendite = valori.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+            this.valoreMin = valori.stream()
+                    .min(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
+            this.valoreMax = valori.stream()
+                    .max(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
+            this.totaleVendite = valori.stream()
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
             this.numeroTransazioni = valori.size();
             
-            if (numeroTransazioni > 0) {
-                this.valoreMedio = totaleVendite.divide(BigDecimal.valueOf(numeroTransazioni), 2, BigDecimal.ROUND_HALF_UP);
-            } else {
-                this.valoreMedio = BigDecimal.ZERO;
-            }
+            this.valoreMedio = numeroTransazioni > 0 ? 
+                    totaleVendite.divide(BigDecimal.valueOf(numeroTransazioni), 2, RoundingMode.HALF_UP) : 
+                    BigDecimal.ZERO;
         }
-        this.periodoInizio = periodoInizio;
-        this.periodoFine = periodoFine;
     }
 
-    private static List<BigDecimal> convertiFloatABigDecimal(List<Float> valoriFloat) {
-        return valoriFloat.stream()
+    /**
+     * Factory method per creare statistiche da lista di Float
+     */
+    public static StatisticheEconomiche daFloat(List<Float> valori, LocalDate periodoInizio, LocalDate periodoFine) {
+        if (valori == null || valori.isEmpty()) {
+            return new StatisticheEconomiche(List.of(), periodoInizio, periodoFine);
+        }
+        
+        List<BigDecimal> valoriDecimali = valori.stream()
                 .map(BigDecimal::valueOf)
                 .collect(Collectors.toList());
+        
+        return new StatisticheEconomiche(valoriDecimali, periodoInizio, periodoFine);
     }
 
-    // Metodo per statistiche per categoria
+    /**
+     * Factory method per creare statistiche da lista di BigDecimal
+     */
+    public static StatisticheEconomiche daBigDecimal(List<BigDecimal> valori, LocalDate periodoInizio, LocalDate periodoFine) {
+        return new StatisticheEconomiche(valori, periodoInizio, periodoFine);
+    }
+
+    /**
+     * Factory method per statistiche vuote
+     */
+    public static StatisticheEconomiche statisticheVuote(LocalDate periodoInizio, LocalDate periodoFine) {
+        return new StatisticheEconomiche(List.of(), periodoInizio, periodoFine);
+    }
+
+    /**
+     * Calcola statistiche aggregate per categoria
+     */
     public static Map<String, StatisticheEconomiche> statistichePerCategoria(
             List<Transazione> transazioni, LocalDate inizio, LocalDate fine) {
         
@@ -82,40 +92,134 @@ public class StatisticheEconomiche {
                 Transazione::getCategoria,
                 Collectors.collectingAndThen(
                     Collectors.toList(),
-                    list -> new StatisticheEconomiche(
-                        new BigDecimalValues(
-                            list.stream()
-                                .map(Transazione::getImporto)
-                                .collect(Collectors.toList())
-                        ),
+                    list -> daBigDecimal(
+                        list.stream()
+                            .map(Transazione::getImporto)
+                            .collect(Collectors.toList()),
                         inizio, fine
                     )
                 )
             ));
     }
 
-    // GETTER (stessi della soluzione 1)
-    public BigDecimal getValoreMin() { return valoreMin; }
-    public BigDecimal getValoreMax() { return valoreMax; }
-    public BigDecimal getValoreMedio() { return valoreMedio; }
-    public BigDecimal getTotaleVendite() { return totaleVendite; }
-    public int getNumeroTransazioni() { return numeroTransazioni; }
-    public LocalDate getPeriodoInizio() { return periodoInizio; }
-    public LocalDate getPeriodoFine() { return periodoFine; }
+    /**
+     * Calcola statistiche per venditore
+     */
+    public static Map<Integer, StatisticheEconomiche> statistichePerVenditore(
+            List<Transazione> transazioni, LocalDate inizio, LocalDate fine) {
+        
+        return transazioni.stream()
+            .filter(t -> !t.getData().toLocalDate().isBefore(inizio) && 
+                        !t.getData().toLocalDate().isAfter(fine))
+            .collect(Collectors.groupingBy(
+                Transazione::getVenditoreId,
+                Collectors.collectingAndThen(
+                    Collectors.toList(),
+                    list -> daBigDecimal(
+                        list.stream()
+                            .map(Transazione::getImporto)
+                            .collect(Collectors.toList()),
+                        inizio, fine
+                    )
+                )
+            ));
+    }
 
-    public float getValoreMinFloat() { return valoreMin.floatValue(); }
-    public float getValoreMaxFloat() { return valoreMax.floatValue(); }
-    public float getValoreMedioFloat() { return valoreMedio.floatValue(); }
-    public float getTotaleVenditeFloat() { return totaleVendite.floatValue(); }
+    /**
+     * Verifica se ci sono dati statistici disponibili
+     */
+    public boolean hasDati() {
+        return numeroTransazioni > 0;
+    }
+
+    /**
+     * Restituisce il valore medio formattato in euro
+     */
+    public String getValoreMedioFormattato() {
+        return "€" + String.format("%.2f", valoreMedio);
+    }
+
+    /**
+     * Restituisce il totale formattato in euro
+     */
+    public String getTotaleFormattato() {
+        return "€" + String.format("%.2f", totaleVendite);
+    }
+
+    /**
+     * Restituisce il range di valori formattato
+     */
+    public String getRangeFormattato() {
+        return "€" + String.format("%.2f", valoreMin) + " - €" + String.format("%.2f", valoreMax);
+    }
+
+    /**
+     * Restituisce il periodo formattato
+     */
+    public String getPeriodoFormattato() {
+        return periodoInizio + " - " + periodoFine;
+    }
+
+    // ========== GETTER ==========
+
+    public BigDecimal getValoreMin() { 
+        return valoreMin; 
+    }
+
+    public BigDecimal getValoreMax() { 
+        return valoreMax; 
+    }
+
+    public BigDecimal getValoreMedio() { 
+        return valoreMedio; 
+    }
+
+    public BigDecimal getTotaleVendite() { 
+        return totaleVendite; 
+    }
+
+    public int getNumeroTransazioni() { 
+        return numeroTransazioni; 
+    }
+
+    public LocalDate getPeriodoInizio() { 
+        return periodoInizio; 
+    }
+
+    public LocalDate getPeriodoFine() { 
+        return periodoFine; 
+    }
+
+    /**
+     * Metodi di convenienza per compatibilità con float
+     */
+    public float getValoreMinFloat() { 
+        return valoreMin.floatValue(); 
+    }
+
+    public float getValoreMaxFloat() { 
+        return valoreMax.floatValue(); 
+    }
+
+    public float getValoreMedioFloat() { 
+        return valoreMedio.floatValue(); 
+    }
+
+    public float getTotaleVenditeFloat() { 
+        return totaleVendite.floatValue(); 
+    }
 
     @Override
     public String toString() {
-        return String.format("Statistiche [%s - %s]: Min: €%.2f, Max: €%.2f, Media: €%.2f, Totale: €%.2f, Transazioni: %d",
-                periodoInizio, periodoFine, valoreMin, valoreMax, valoreMedio, totaleVendite, numeroTransazioni);
-    }
-
- // Metodo factory per BigDecimal
-    public static StatisticheEconomiche daBigDecimal(List<BigDecimal> valori, LocalDate periodoInizio, LocalDate periodoFine) {
-        return new StatisticheEconomiche(valori, periodoInizio, periodoFine);
+        return String.format(
+            "Statistiche [%s - %s]: Min: €%.2f, Max: €%.2f, Media: €%.2f, Totale: €%.2f, Transazioni: %d",
+            periodoInizio, 
+            periodoFine, 
+            valoreMin, 
+            valoreMax, 
+            valoreMedio, 
+            totaleVendite, 
+            numeroTransazioni
+        );
     }
 }

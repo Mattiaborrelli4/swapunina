@@ -12,43 +12,69 @@ import javafx.scene.text.Text;
 import java.util.List;
 import java.util.function.Consumer;
 
+/**
+ * ProductGrid - Componente per la visualizzazione a griglia degli annunci
+ * Gestisce la visualizzazione, caricamento, stati vuoti/errore e aggiornamenti dinamici
+ */
 public class ProductGrid {
 
+    // Componenti UI
     private VBox container;               // Contenitore principale
-    private TilePane productGrid;         // Griglia di card
-    private VBox loadingContainer;        // Schermata di caricamento
-    private VBox emptyContainer;          // Schermata "nessun prodotto"
+    private TilePane productGrid;         // Griglia di card prodotti
+    private VBox loadingContainer;        // Container per stato di caricamento
+    private VBox emptyContainer;          // Container per stato vuoto
 
+    // Callback per azioni utente
     private Consumer<Annuncio> onDetailsAction;
     private Consumer<Annuncio> onOfferAction;
     private Consumer<Annuncio> onFavoriteAction;
-    private Consumer<Annuncio> onAnnuncioModificato; // ✅ NUOVO: Callback per annuncio modificato
+    private Consumer<Annuncio> onAnnuncioModificato;
+
+    // Costanti per configurazione
+    private static final int GRID_PADDING = 20;
+    private static final int GRID_HGAP = 24;
+    private static final int GRID_VGAP = 24;
+    private static final int GRID_PREF_COLUMNS = 3;
+    private static final int LOADING_PADDING = 40;
+    private static final int EMPTY_PADDING = 30;
 
     /**
-     * Crea la struttura principale della griglia dei prodotti.
+     * Crea e restituisce la struttura principale della griglia prodotti
+     * @return VBox contenente la griglia completa
      */
     public VBox creaProductGrid() {
-
-        container = new VBox();
-        container.setId("productGridContainer");
-
-        productGrid = new TilePane();
-        productGrid.getStyleClass().add("product-grid");
-        productGrid.setPadding(new Insets(20));
-        productGrid.setHgap(24);
-        productGrid.setVgap(24);
-        productGrid.setPrefColumns(3);
-        productGrid.setId("productTilePane");
-
-        loadingContainer = creaLoadingContainer();
-        emptyContainer = creaEmptyContainer();
-
+        initializeContainers();
+        setupProductGrid();
         container.getChildren().add(productGrid);
         return container;
     }
 
     /**
-     * Mostra la schermata di caricamento.
+     * Inizializza tutti i container principali
+     */
+    private void initializeContainers() {
+        container = new VBox();
+        container.setId("productGridContainer");
+
+        loadingContainer = creaLoadingContainer();
+        emptyContainer = creaEmptyContainer();
+    }
+
+    /**
+     * Configura la griglia principale dei prodotti
+     */
+    private void setupProductGrid() {
+        productGrid = new TilePane();
+        productGrid.getStyleClass().add("product-grid");
+        productGrid.setPadding(new Insets(GRID_PADDING));
+        productGrid.setHgap(GRID_HGAP);
+        productGrid.setVgap(GRID_VGAP);
+        productGrid.setPrefColumns(GRID_PREF_COLUMNS);
+        productGrid.setId("productTilePane");
+    }
+
+    /**
+     * Mostra l'indicatore di caricamento
      */
     public void mostraLoading() {
         Platform.runLater(() -> {
@@ -57,16 +83,16 @@ public class ProductGrid {
     }
 
     /**
-     * Nasconde il caricamento e mostra la griglia.
+     * Nasconde l'indicatore di caricamento e mostra la griglia prodotti
      */
     public void nascondiLoading() {
         Platform.runLater(() -> {
-        	container.getChildren().setAll(productGrid);
+            container.getChildren().setAll(productGrid);
         });
     }
 
     /**
-     * Mostra schermata vuota se non ci sono annunci.
+     * Mostra lo stato "nessun prodotto trovato"
      */
     public void mostraStatoVuoto() {
         Platform.runLater(() -> {
@@ -75,11 +101,20 @@ public class ProductGrid {
     }
 
     /**
-     * Mostra un messaggio di errore a schermo.
+     * Mostra un messaggio di errore
+     * @param messaggio Il messaggio di errore da visualizzare
      */
     public void mostraErrore(String messaggio) {
         System.out.println("[DEBUG] ERRORE: " + messaggio);
 
+        VBox erroreBox = createErrorBox(messaggio);
+        Platform.runLater(() -> container.getChildren().setAll(erroreBox));
+    }
+
+    /**
+     * Crea il container per il messaggio di errore
+     */
+    private VBox createErrorBox(String messaggio) {
         Label erroreLabel = new Label(messaggio);
         erroreLabel.setStyle("-fx-text-fill: red; -fx-font-size: 14px; -fx-font-weight: bold;");
 
@@ -88,11 +123,12 @@ public class ProductGrid {
         erroreBox.setPadding(new Insets(30));
         erroreBox.setStyle("-fx-alignment: center;");
 
-        Platform.runLater(() -> container.getChildren().setAll(erroreBox));
+        return erroreBox;
     }
 
     /**
-     * Aggiorna la griglia con gli annunci ricevuti.
+     * Aggiorna la griglia con una nuova lista di annunci
+     * @param annunci Lista di annunci da visualizzare
      */
     public void aggiornaAnnunci(List<Annuncio> annunci) {
         Platform.runLater(() -> {
@@ -101,47 +137,47 @@ public class ProductGrid {
                 return;
             }
 
-            productGrid.getChildren().clear();
-
-            for (Annuncio annuncio : annunci) {
-                String nomeOggetto = annuncio.getOggetto() != null
-                        ? annuncio.getOggettoPrincipale().getNome()
-                        : "Oggetto sconosciuto";
-
-                ProductCard card = new ProductCard(annuncio);
-                card.setOnDetailsAction(onDetailsAction);
-                card.setOnOfferAction(onOfferAction);
-                card.setOnFavoriteAction(onFavoriteAction);
-                card.setOnAnnuncioModificato(onAnnuncioModificato); // ✅ NUOVO: Imposta callback modifica
-
-                productGrid.getChildren().add(card);
-            }
-
+            clearAndPopulateGrid(annunci);
             container.getChildren().setAll(productGrid);
         });
     }
 
     /**
-     * ✅ NUOVO METODO: Ricrea una card specifica per un annuncio modificato
+     * Pulisce e popola la griglia con gli annunci
+     */
+    private void clearAndPopulateGrid(List<Annuncio> annunci) {
+        productGrid.getChildren().clear();
+
+        for (Annuncio annuncio : annunci) {
+            ProductCard card = createProductCard(annuncio);
+            productGrid.getChildren().add(card);
+        }
+    }
+
+    /**
+     * Crea una card prodotto configurata con tutti i callback
+     */
+    private ProductCard createProductCard(Annuncio annuncio) {
+        ProductCard card = new ProductCard(annuncio);
+        card.setOnDetailsAction(onDetailsAction);
+        card.setOnOfferAction(onOfferAction);
+        card.setOnFavoriteAction(onFavoriteAction);
+        card.setOnAnnuncioModificato(onAnnuncioModificato);
+        return card;
+    }
+
+    /**
+     * Aggiorna una card specifica quando un annuncio viene modificato
+     * @param annuncioModificato L'annuncio con i dati aggiornati
      */
     public void aggiornaCardAnnuncio(Annuncio annuncioModificato) {
         Platform.runLater(() -> {
-            
-            // Cerca la card esistente e la sostituisce
             for (int i = 0; i < productGrid.getChildren().size(); i++) {
                 javafx.scene.Node node = productGrid.getChildren().get(i);
                 if (node instanceof ProductCard) {
                     ProductCard oldCard = (ProductCard) node;
                     if (oldCard.getAnnuncioId() == annuncioModificato.getId()) {
-                        // Crea una nuova card con l'annuncio aggiornato
-                        ProductCard newCard = new ProductCard(annuncioModificato);
-                        newCard.setOnDetailsAction(onDetailsAction);
-                        newCard.setOnOfferAction(onOfferAction);
-                        newCard.setOnFavoriteAction(onFavoriteAction);
-                        newCard.setOnAnnuncioModificato(onAnnuncioModificato);
-                        
-                        // Sostituisce la vecchia card con quella nuova
-                        productGrid.getChildren().set(i, newCard);
+                        replaceCardAtPosition(i, annuncioModificato);
                         break;
                     }
                 }
@@ -149,61 +185,173 @@ public class ProductGrid {
         });
     }
 
-    // === COMPONENTI UI SECONDARI ===
+    /**
+     * Sostituisce una card in una posizione specifica
+     */
+    private void replaceCardAtPosition(int index, Annuncio annuncioModificato) {
+        ProductCard newCard = createProductCard(annuncioModificato);
+        productGrid.getChildren().set(index, newCard);
+    }
 
+    // === METODI PER LA CREAZIONE DEI CONTAINER DI STATO ===
+
+    /**
+     * Crea il container per lo stato di caricamento
+     */
     private VBox creaLoadingContainer() {
         VBox box = new VBox();
         box.setSpacing(10);
-        box.setPadding(new Insets(40));
+        box.setPadding(new Insets(LOADING_PADDING));
         box.setStyle("-fx-alignment: center;");
 
-        ProgressIndicator progress = new ProgressIndicator();
-        progress.setPrefSize(50, 50);
-
-        Text testo = new Text("Caricamento prodotti...");
-        testo.setStyle("-fx-font-size: 14px;");
+        ProgressIndicator progress = createProgressIndicator();
+        Text testo = createLoadingText();
 
         box.getChildren().addAll(progress, testo);
         return box;
     }
 
+    /**
+     * Crea l'indicatore di progresso
+     */
+    private ProgressIndicator createProgressIndicator() {
+        ProgressIndicator progress = new ProgressIndicator();
+        progress.setPrefSize(50, 50);
+        return progress;
+    }
+
+    /**
+     * Crea il testo di caricamento
+     */
+    private Text createLoadingText() {
+        Text testo = new Text("Caricamento prodotti...");
+        testo.setStyle("-fx-font-size: 14px;");
+        return testo;
+    }
+
+    /**
+     * Crea il container per lo stato vuoto
+     */
     private VBox creaEmptyContainer() {
         VBox box = new VBox();
         box.setSpacing(12);
-        box.setPadding(new Insets(30));
+        box.setPadding(new Insets(EMPTY_PADDING));
         box.setStyle("-fx-alignment: center;");
 
-        Text icona = new Text("📦");
-        icona.setStyle("-fx-font-size: 48px;");
-
-        Text titolo = new Text("Nessun prodotto trovato");
-        titolo.setStyle("-fx-font-weight: bold; -fx-font-size: 18px;");
-
-        Text descrizione = new Text("Prova a modificare i filtri di ricerca o esplora altre categorie.");
-        descrizione.setStyle("-fx-font-size: 13px;");
+        Text icona = createEmptyIcon();
+        Text titolo = createEmptyTitle();
+        Text descrizione = createEmptyDescription();
 
         box.getChildren().addAll(icona, titolo, descrizione);
         return box;
     }
 
-    // === SETTER CALLBACKS ===
+    /**
+     * Crea l'icona per stato vuoto
+     */
+    private Text createEmptyIcon() {
+        Text icona = new Text("📦");
+        icona.setStyle("-fx-font-size: 48px;");
+        return icona;
+    }
 
+    /**
+     * Crea il titolo per stato vuoto
+     */
+    private Text createEmptyTitle() {
+        Text titolo = new Text("Nessun prodotto trovato");
+        titolo.setStyle("-fx-font-weight: bold; -fx-font-size: 18px;");
+        return titolo;
+    }
+
+    /**
+     * Crea la descrizione per stato vuoto
+     */
+    private Text createEmptyDescription() {
+        Text descrizione = new Text("Prova a modificare i filtri di ricerca o esplora altre categorie.");
+        descrizione.setStyle("-fx-font-size: 13px;");
+        return descrizione;
+    }
+
+    // === SETTER PER I CALLBACK ===
+
+    /**
+     * Imposta il callback per l'azione dettagli
+     * @param onDetailsAction Consumer che gestisce la visualizzazione dettagli
+     */
     public void setOnDetailsAction(Consumer<Annuncio> onDetailsAction) {
         this.onDetailsAction = onDetailsAction;
     }
 
+    /**
+     * Imposta il callback per l'azione offerta
+     * @param onOfferAction Consumer che gestisce l'invio offerte
+     */
     public void setOnOfferAction(Consumer<Annuncio> onOfferAction) {
         this.onOfferAction = onOfferAction;
     }
 
+    /**
+     * Imposta il callback per l'azione preferiti
+     * @param onFavoriteAction Consumer che gestisce l'aggiunta ai preferiti
+     */
     public void setOnFavoriteAction(Consumer<Annuncio> onFavoriteAction) {
         this.onFavoriteAction = onFavoriteAction;
     }
 
     /**
-     * ✅ NUOVO: Setter per il callback di annuncio modificato
+     * Imposta il callback per l'aggiornamento annuncio
+     * @param onAnnuncioModificato Consumer che gestisce gli aggiornamenti annunci
      */
     public void setOnAnnuncioModificato(Consumer<Annuncio> onAnnuncioModificato) {
         this.onAnnuncioModificato = onAnnuncioModificato;
+    }
+
+    // === METODI UTILITY ===
+
+    /**
+     * Restituisce il numero di card attualmente visualizzate
+     * @return Numero di card nella griglia
+     */
+    public int getNumeroCard() {
+        return productGrid.getChildren().size();
+    }
+
+    /**
+     * Pulisce completamente la griglia
+     */
+    public void clear() {
+        Platform.runLater(() -> {
+            productGrid.getChildren().clear();
+        });
+    }
+
+    /**
+     * Verifica se la griglia è vuota
+     * @return true se non ci sono card, false altrimenti
+     */
+    public boolean isEmpty() {
+        return productGrid.getChildren().isEmpty();
+    }
+
+    /**
+     * Imposta il numero di colonne preferito per la griglia
+     * @param colonne Numero di colonne desiderato
+     */
+    public void setNumeroColonne(int colonne) {
+        productGrid.setPrefColumns(colonne);
+    }
+
+    /**
+     * Aggiorna lo stile della griglia in base allo stato di autenticazione
+     * @param isAuthenticated true se l'utente è autenticato, false altrimenti
+     */
+    public void setAuthState(boolean isAuthenticated) {
+        // Potrebbe essere utilizzato per mostrare/nascondere funzionalità
+        // che richiedono l'autenticazione
+        String style = isAuthenticated ? 
+            "-fx-opacity: 1.0;" : 
+            "-fx-opacity: 0.8;";
+        productGrid.setStyle(style);
     }
 }

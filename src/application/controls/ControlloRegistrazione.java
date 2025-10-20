@@ -14,6 +14,7 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.paint.Color;
+import java.util.Optional;
 
 public class ControlloRegistrazione extends BorderPane {
     private TextField campoMatricola;
@@ -31,7 +32,7 @@ public class ControlloRegistrazione extends BorderPane {
     private Label erroreConfermaPassword;
     
     private Hyperlink collegamentoLogin;
-    private Button bottoneRegistrati; // Riferimento al bottone per la gestione dell'Invio
+    private Button bottoneRegistrati;
 
     public ControlloRegistrazione() {
         getStyleClass().add("pannello-radice");
@@ -71,7 +72,6 @@ public class ControlloRegistrazione extends BorderPane {
         bottoneRegistrati.setPrefWidth(220);
         bottoneRegistrati.setPrefHeight(45);
         
-        // Configurazione gestione tasto Invio
         configuraGestioneInvio();
         
         bottoneRegistrati.setOnAction(e -> eseguiRegistrazione());
@@ -90,11 +90,13 @@ public class ControlloRegistrazione extends BorderPane {
         
         // Aggiungi gestore per tasto Invio a tutti i campi
         for(TextInputControl campo : campi) {
-            campo.setOnKeyPressed(event -> {
-                if(event.getCode() == KeyCode.ENTER) {
-                    eseguiRegistrazione();
-                }
-            });
+            if (campo != null) {
+                campo.setOnKeyPressed(event -> {
+                    if(event.getCode() == KeyCode.ENTER) {
+                        eseguiRegistrazione();
+                    }
+                });
+            }
         }
     }
 
@@ -111,40 +113,50 @@ public class ControlloRegistrazione extends BorderPane {
                 campoPassword.getText()
             );
             
-            new Thread(() -> {
-                try {
-                    UtentiDAO gestore = new UtentiDAO();
+            eseguiRegistrazioneAsync(nuovoUtente);
+        }
+    }
+
+    /**
+     * Esegue la registrazione in un thread separato
+     */
+    private void eseguiRegistrazioneAsync(utente nuovoUtente) {
+        disabilitaForm(true);
+        
+        new Thread(() -> {
+            try {
+                UtentiDAO gestore = new UtentiDAO();
+                
+                // Verifica preventiva matricola esistente
+                if (gestore.matricolaEsiste(nuovoUtente.getMatricola())) {
+                    Platform.runLater(() -> {
+                        erroreMatricola.setText("Matricola già registrata");
+                        applicaStileErrore(campoMatricola);
+                    });
+                    return;
+                }
+                
+                // Verifica preventiva email esistente
+                if (gestore.emailEsiste(nuovoUtente.getEmail())) {
+                    Platform.runLater(() -> {
+                        erroreEmail.setText("Email già registrata");
+                        applicaStileErrore(campoEmail);
+                    });
+                    return;
+                }
+                
+                // Effettua la registrazione
+                boolean registrato = gestore.registraUtente(nuovoUtente);
+                
+                if (registrato) {
+                    // Ottieni l'utente completo dal database (con ID) - gestione Optional
+                    Optional<utente> utenteOpt = gestore.getUtenteByEmail(nuovoUtente.getEmail());
                     
-                    // Verifica preventiva matricola esistente
-                    if (gestore.matricolaEsiste(nuovoUtente.getMatricola())) {
-                        Platform.runLater(() -> {
-                            erroreMatricola.setText("Matricola già registrata");
-                            applicaStileErrore(campoMatricola);
-                        });
-                        return;
-                    }
-                    
-                    // Verifica preventiva email esistente
-                    if (gestore.emailEsiste(nuovoUtente.getEmail())) {
-                        Platform.runLater(() -> {
-                            erroreEmail.setText("Email già registrata");
-                            applicaStileErrore(campoEmail);
-                        });
-                        return;
-                    }
-                    
-                    // Effettua la registrazione
-                    boolean registrato = gestore.registraUtente(nuovoUtente);
-                    
-                    if (registrato) {
-                        // Ottieni l'utente completo dal database (con ID)
-                        utente utenteRegistrato = gestore.getUtenteByEmail(nuovoUtente.getEmail());
-                        if (utenteRegistrato != null) {
-                            // Salva l'utente nella SessionManager
-                            SessionManager.setCurrentUser(utenteRegistrato);
-                            System.out.println("[DEBUG] Utente registrato e salvato in SessionManager: " + 
-                                              utenteRegistrato.getEmail() + " (ID: " + utenteRegistrato.getId() + ")");
-                        }
+                    if (utenteOpt.isPresent()) {
+                        utente utenteRegistrato = utenteOpt.get();
+                        SessionManager.setCurrentUser(utenteRegistrato);
+                        System.out.println("[DEBUG] Utente registrato e salvato in SessionManager: " + 
+                                          utenteRegistrato.getEmail() + " (ID: " + utenteRegistrato.getId() + ")");
                         
                         Platform.runLater(() -> {
                             mostraConfermaRegistrazione();
@@ -152,33 +164,39 @@ public class ControlloRegistrazione extends BorderPane {
                         });
                     } else {
                         Platform.runLater(() -> {
-                            mostraErroreRegistrazione("Registrazione fallita per un errore sconosciuto");
+                            mostraErroreRegistrazione("Registrazione completata ma utente non trovato. Effettua il login manualmente.");
                         });
                     }
-                } catch (Exception ex) {
+                } else {
                     Platform.runLater(() -> {
-                        mostraErroreRegistrazione("Errore di connessione al database");
-                        ex.printStackTrace();
+                        mostraErroreRegistrazione("Registrazione fallita per un errore sconosciuto");
                     });
                 }
-            }).start();
-        }
+            } catch (Exception ex) {
+                Platform.runLater(() -> {
+                    mostraErroreRegistrazione("Errore di connessione al database: " + ex.getMessage());
+                    ex.printStackTrace();
+                });
+            } finally {
+                Platform.runLater(() -> disabilitaForm(false));
+            }
+        }).start();
     }
 
     private void mostraConfermaRegistrazione() {
-        Platform.runLater(() -> {
-            if (onRegistrazioneSuccess != null) onRegistrazioneSuccess.run();
-        });
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Registrazione Completata");
+        alert.setHeaderText(null);
+        alert.setContentText("Registrazione completata con successo! Benvenuto in SwapUnina.");
+        alert.showAndWait();
     }
 
     private void mostraErroreRegistrazione(String messaggio) {
-        Platform.runLater(() -> {
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Errore di Registrazione");
-            alert.setHeaderText(null);
-            alert.setContentText("Errore durante la registrazione:\n" + messaggio);
-            alert.showAndWait();
-        });
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Errore di Registrazione");
+        alert.setHeaderText(null);
+        alert.setContentText(messaggio);
+        alert.showAndWait();
     }
 
     private void pulisciErrori() {
@@ -198,28 +216,86 @@ public class ControlloRegistrazione extends BorderPane {
     }
 
     private void convalidaCampi() {
-        convalidaCampo(campoMatricola, erroreMatricola, "Matricola");
-        convalidaCampo(campoEmail, erroreEmail, "Email");
-        convalidaCampo(campoNome, erroreNome, "Nome");
-        convalidaCampo(campoCognome, erroreCognome, "Cognome");
+        convalidaCampoMatricola();
+        convalidaCampoEmail();
+        convalidaCampoNome();
+        convalidaCampoCognome();
         convalidaCampoPassword();
         convalidaCampoConfermaPassword();
     }
 
-    private void convalidaCampo(TextField campo, Label etichettaErrore, String nomeCampo) {
-        String valore = campo.getText();
+    private void convalidaCampoMatricola() {
+        String valore = campoMatricola.getText().trim();
         
         if (valore.isEmpty()) {
-            etichettaErrore.setText(nomeCampo + " obbligatorio");
-            applicaStileErrore(campo);
+            erroreMatricola.setText("Matricola obbligatoria");
+            applicaStileErrore(campoMatricola);
+        } else if (!valore.matches("^[A-Za-z]\\d{8}$")) {
+            erroreMatricola.setText("Formato: lettera + 8 cifre (es. A12345678)");
+            applicaStileErrore(campoMatricola);
         } else {
-            if (campo == campoMatricola) {
-                convalidaFormatoMatricola(campo, etichettaErrore);
-            } else if (campo == campoEmail) {
-                convalidaFormatoEmail(campo, etichettaErrore);
-            } else if (campo == campoNome || campo == campoCognome) {
-                convalidaFormatoNome(campo, etichettaErrore, nomeCampo);
-            }
+            applicaStileSuccesso(campoMatricola);
+            erroreMatricola.setText("");
+        }
+    }
+
+    private void convalidaCampoEmail() {
+        String valore = campoEmail.getText().trim().toLowerCase();
+        
+        if (valore.isEmpty()) {
+            erroreEmail.setText("Email obbligatoria");
+            applicaStileErrore(campoEmail);
+        } else if (!valore.contains("@")) {
+            erroreEmail.setText("Manca il simbolo @");
+            applicaStileErrore(campoEmail);
+        } else if (!valore.matches("^[\\w-\\.]+@studenti\\.unina\\.it$")) {
+            erroreEmail.setText("Deve essere un'email @studenti.unina.it");
+            applicaStileErrore(campoEmail);
+        } else {
+            applicaStileSuccesso(campoEmail);
+            erroreEmail.setText("");
+        }
+    }
+
+    private void convalidaCampoNome() {
+        String valore = campoNome.getText().trim();
+        
+        if (valore.isEmpty()) {
+            erroreNome.setText("Nome obbligatorio");
+            applicaStileErrore(campoNome);
+        } else if (valore.length() < 2) {
+            erroreNome.setText("Nome troppo breve (min 2 caratteri)");
+            applicaStileErrore(campoNome);
+        } else if (valore.length() > 30) {
+            erroreNome.setText("Nome troppo lungo (max 30 caratteri)");
+            applicaStileErrore(campoNome);
+        } else if (!valore.matches("^[a-zA-Z\\sàèéìòù''-]+$")) {
+            erroreNome.setText("Caratteri non validi (solo lettere)");
+            applicaStileErrore(campoNome);
+        } else {
+            applicaStileSuccesso(campoNome);
+            erroreNome.setText("");
+        }
+    }
+
+    private void convalidaCampoCognome() {
+        String valore = campoCognome.getText().trim();
+        
+        if (valore.isEmpty()) {
+            erroreCognome.setText("Cognome obbligatorio");
+            applicaStileErrore(campoCognome);
+        } else if (valore.length() < 2) {
+            erroreCognome.setText("Cognome troppo breve (min 2 caratteri)");
+            applicaStileErrore(campoCognome);
+        } else if (valore.length() > 30) {
+            erroreCognome.setText("Cognome troppo lungo (max 30 caratteri)");
+            applicaStileErrore(campoCognome);
+        } else if (!valore.matches("^[a-zA-Z\\sàèéìòù''-]+$")) {
+            erroreCognome.setText("Caratteri non validi (solo lettere)");
+            applicaStileErrore(campoCognome);
+        } else {
+            applicaStileSuccesso(campoCognome);
+            erroreCognome.setText("");
         }
     }
 
@@ -229,8 +305,24 @@ public class ControlloRegistrazione extends BorderPane {
         if (password.isEmpty()) {
             errorePassword.setText("Password obbligatoria");
             applicaStileErrore(campoPassword);
+        } else if (password.length() < 8) {
+            errorePassword.setText("Password troppo corta (min 8 caratteri)");
+            applicaStileErrore(campoPassword);
+        } else if (password.length() > 20) {
+            errorePassword.setText("Password troppo lunga (max 20 caratteri)");
+            applicaStileErrore(campoPassword);
+        } else if (!password.matches(".*[A-Z].*")) {
+            errorePassword.setText("Manca una lettera maiuscola");
+            applicaStileErrore(campoPassword);
+        } else if (!password.matches(".*\\d.*")) {
+            errorePassword.setText("Manca un numero");
+            applicaStileErrore(campoPassword);
+        } else if (!password.matches(".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?].*")) {
+            errorePassword.setText("Manca un carattere speciale");
+            applicaStileErrore(campoPassword);
         } else {
-            convalidaFormatoPassword(campoPassword, errorePassword);
+            applicaStileSuccesso(campoPassword);
+            errorePassword.setText("");
         }
     }
 
@@ -250,84 +342,28 @@ public class ControlloRegistrazione extends BorderPane {
         }
     }
 
-    private void convalidaFormatoMatricola(TextField campo, Label etichettaErrore) {
-        String valore = campo.getText();
-        if (!valore.matches("^[A-Za-z]\\d{8}$")) {
-            etichettaErrore.setText("Formato: lettera + 8 cifre (es. A12345678)");
-            applicaStileErrore(campo);
-        } else {
-            applicaStileSuccesso(campo);
-            etichettaErrore.setText("");
-        }
-    }
-
-    private void convalidaFormatoEmail(TextField campo, Label etichettaErrore) {
-        String valore = campo.getText();
-        if (!valore.contains("@")) {
-            etichettaErrore.setText("Manca il simbolo @");
-            applicaStileErrore(campo);
-        } else if (!valore.matches("^[\\w-\\.]+@studenti\\.unina\\.it$")) {
-            etichettaErrore.setText("Deve essere un'email @studenti.unina.it");
-            applicaStileErrore(campo);
-        } else {
-            applicaStileSuccesso(campo);
-            etichettaErrore.setText("");
-        }
-    }
-
-    private void convalidaFormatoNome(TextField campo, Label etichettaErrore, String nomeCampo) {
-        String valore = campo.getText();
-        if (valore.length() < 2) {
-            etichettaErrore.setText(nomeCampo + " troppo breve (min 2 caratteri)");
-            applicaStileErrore(campo);
-        } else if (valore.length() > 30) {
-            etichettaErrore.setText(nomeCampo + " troppo lungo (max 30 caratteri)");
-            applicaStileErrore(campo);
-        } else if (!valore.matches("^[a-zA-Z\\sàèéìòù''-]+$")) {
-            etichettaErrore.setText("Caratteri non validi (solo lettere)");
-            applicaStileErrore(campo);
-        } else {
-            applicaStileSuccesso(campo);
-            etichettaErrore.setText("");
-        }
-    }
-
-    private void convalidaFormatoPassword(PasswordField campo, Label etichettaErrore) {
-        String valore = campo.getText();
-        if (valore.length() < 8) {
-            etichettaErrore.setText("Password troppo corta (min 8 caratteri)");
-            applicaStileErrore(campo);
-        } else if (valore.length() > 20) {
-            etichettaErrore.setText("Password troppo lunga (max 20 caratteri)");
-            applicaStileErrore(campo);
-        } else if (!valore.matches(".*[A-Z].*")) {
-            etichettaErrore.setText("Manca una lettera maiuscola");
-            applicaStileErrore(campo);
-        } else if (!valore.matches(".*\\d.*")) {
-            etichettaErrore.setText("Manca un numero");
-            applicaStileErrore(campo);
-        } else if (!valore.matches(".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?].*")) {
-            etichettaErrore.setText("Manca un carattere speciale");
-            applicaStileErrore(campo);
-        } else {
-            applicaStileSuccesso(campo);
-            etichettaErrore.setText("");
-        }
-    }
-
     private void applicaStileErrore(Control campo) {
-        campo.getStyleClass().remove("campo-successo");
-        campo.getStyleClass().add("campo-errore");
+        if (campo != null) {
+            campo.getStyleClass().remove("campo-successo");
+            if (!campo.getStyleClass().contains("campo-errore")) {
+                campo.getStyleClass().add("campo-errore");
+            }
+        }
     }
 
     private void applicaStileSuccesso(Control campo) {
-        campo.getStyleClass().remove("campo-errore");
-        campo.getStyleClass().add("campo-successo");
+        if (campo != null) {
+            campo.getStyleClass().remove("campo-errore");
+            if (!campo.getStyleClass().contains("campo-successo")) {
+                campo.getStyleClass().add("campo-successo");
+            }
+        }
     }
 
     private void pulisciStileCampo(Control campo) {
-        campo.getStyleClass().remove("campo-errore");
-        campo.getStyleClass().remove("campo-successo");
+        if (campo != null) {
+            campo.getStyleClass().removeAll("campo-errore", "campo-successo");
+        }
     }
 
     private GridPane creaGrigliaModulo() {
@@ -340,6 +376,7 @@ public class ControlloRegistrazione extends BorderPane {
         ColumnConstraints col2 = new ColumnConstraints(250);
         griglia.getColumnConstraints().addAll(col1, col2);
         
+        // Inizializza le etichette di errore
         erroreMatricola = new Label();
         erroreMatricola.getStyleClass().add("etichetta-errore");
         erroreEmail = new Label();
@@ -358,6 +395,7 @@ public class ControlloRegistrazione extends BorderPane {
         matricolaLabel.getStyleClass().add("etichetta-campo");
         campoMatricola = new TextField();
         campoMatricola.getStyleClass().add("campo-testo");
+        campoMatricola.setPromptText("A12345678");
         griglia.add(matricolaLabel, 0, 0);
         griglia.add(campoMatricola, 1, 0);
         griglia.add(erroreMatricola, 1, 1);
@@ -368,6 +406,15 @@ public class ControlloRegistrazione extends BorderPane {
         emailLabel.getStyleClass().add("etichetta-campo");
         campoEmail = new TextField();
         campoEmail.getStyleClass().add("campo-testo");
+        campoEmail.setPromptText("nome.cognome@studenti.unina.it");
+        
+        // Auto lowercase per email
+        campoEmail.textProperty().addListener((obs, oldValue, newValue) -> {
+            if (!newValue.isEmpty()) {
+                campoEmail.setText(newValue.toLowerCase());
+            }
+        });
+        
         griglia.add(emailLabel, 0, 2);
         griglia.add(campoEmail, 1, 2);
         griglia.add(erroreEmail, 1, 3);
@@ -378,6 +425,7 @@ public class ControlloRegistrazione extends BorderPane {
         nomeLabel.getStyleClass().add("etichetta-campo");
         campoNome = new TextField();
         campoNome.getStyleClass().add("campo-testo");
+        campoNome.setPromptText("Mario");
         griglia.add(nomeLabel, 0, 4);
         griglia.add(campoNome, 1, 4);
         griglia.add(erroreNome, 1, 5);
@@ -388,6 +436,7 @@ public class ControlloRegistrazione extends BorderPane {
         cognomeLabel.getStyleClass().add("etichetta-campo");
         campoCognome = new TextField();
         campoCognome.getStyleClass().add("campo-testo");
+        campoCognome.setPromptText("Rossi");
         griglia.add(cognomeLabel, 0, 6);
         griglia.add(campoCognome, 1, 6);
         griglia.add(erroreCognome, 1, 7);
@@ -398,6 +447,7 @@ public class ControlloRegistrazione extends BorderPane {
         passwordLabel.getStyleClass().add("etichetta-campo");
         campoPassword = new PasswordField();
         campoPassword.getStyleClass().add("campo-testo");
+        campoPassword.setPromptText("Min. 8 caratteri con maiuscola, numero e speciale");
         griglia.add(passwordLabel, 0, 8);
         griglia.add(campoPassword, 1, 8);
         griglia.add(errorePassword, 1, 9);
@@ -408,12 +458,33 @@ public class ControlloRegistrazione extends BorderPane {
         confermaPasswordLabel.getStyleClass().add("etichetta-campo");
         campoConfermaPassword = new PasswordField();
         campoConfermaPassword.getStyleClass().add("campo-testo");
+        campoConfermaPassword.setPromptText("Reinserisci la password");
         griglia.add(confermaPasswordLabel, 0, 10);
         griglia.add(campoConfermaPassword, 1, 10);
         griglia.add(erroreConfermaPassword, 1, 11);
         GridPane.setColumnSpan(erroreConfermaPassword, 2);
 
         return griglia;
+    }
+    
+    /**
+     * Abilita/disabilita il form durante la registrazione
+     */
+    private void disabilitaForm(boolean disabilita) {
+        campoMatricola.setDisable(disabilita);
+        campoEmail.setDisable(disabilita);
+        campoNome.setDisable(disabilita);
+        campoCognome.setDisable(disabilita);
+        campoPassword.setDisable(disabilita);
+        campoConfermaPassword.setDisable(disabilita);
+        bottoneRegistrati.setDisable(disabilita);
+        collegamentoLogin.setDisable(disabilita);
+        
+        if (disabilita) {
+            bottoneRegistrati.setText("Registrazione in corso...");
+        } else {
+            bottoneRegistrati.setText("Registrati");
+        }
     }
     
     private boolean tuttiCampiValidi() {

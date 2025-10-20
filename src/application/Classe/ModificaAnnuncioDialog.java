@@ -1,56 +1,115 @@
 package application.Classe;
 
-import application.Classe.Annuncio;
 import application.Enum.Tipologia;
+import application.DB.AnnuncioDAO;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.util.StringConverter;
 
+/**
+ * Dialog per la modifica di un annuncio esistente
+ * Fornisce interfaccia per modificare titolo, descrizione, prezzo, tipologia e consegna
+ */
 public class ModificaAnnuncioDialog extends Dialog<Annuncio> {
     
     private Button eliminaButton;
     private Button concludeButton;
-    private Annuncio annuncioOriginale;
+    private final Annuncio annuncioOriginale;
     
+    // Componenti UI
+    private TextField titoloField;
+    private TextArea descrizioneArea;
+    private TextField prezzoField;
+    private ComboBox<Tipologia> tipologiaCombo;
+    private ComboBox<String> consegnaCombo;
+    
+    // Costanti per stili e messaggi
+    private static final String STILE_BOTTONE_ELIMINA = "-fx-background-color: #f44336; -fx-text-fill: white;";
+    private static final String STILE_BOTTONE_CONCLUDI = "-fx-background-color: #4CAF50; -fx-text-fill: white;";
+    private static final int PADDING_GRID = 20;
+    private static final int SPACING_ORIZZONTALE = 10;
+    private static final int SPACING_VERTICALE = 10;
+
     public ModificaAnnuncioDialog(Annuncio annuncio) {
         this.annuncioOriginale = annuncio;
         
+        // Inizializza i pulsanti prima di qualsiasi altro metodo
+        this.eliminaButton = new Button("Elimina Annuncio");
+        this.concludeButton = new Button("Segna come Concluso");
+        
+        inizializzaUI();
+        setupButtonActions();
+    }
+
+    /**
+     * Inizializza l'interfaccia utente del dialog
+     */
+    private void inizializzaUI() {
         setTitle("Modifica Annuncio");
         setHeaderText("Modifica i dettagli del tuo annuncio");
         
-        // Pulsanti
-        ButtonType salvaButtonType = new ButtonType("Salva", ButtonBar.ButtonData.OK_DONE);
+        // Pulsanti standard del dialog
+        ButtonType salvaButtonType = new ButtonType("Salva Modifiche", ButtonBar.ButtonData.OK_DONE);
         getDialogPane().getButtonTypes().addAll(salvaButtonType, ButtonType.CANCEL);
         
-        // Aggiungi pulsanti personalizzati
-        eliminaButton = new Button("Elimina Annuncio");
-        eliminaButton.setStyle("-fx-background-color: #f44336; -fx-text-fill: white;");
+        // Crea e configura i campi del form
+        GridPane grid = creaGridPane();
+        creaCampiForm();
         
-        concludeButton = new Button("Segna come Concluso");
-        concludeButton.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
+        // Aggiungi campi al grid
+        aggiungiCampiAlGrid(grid);
         
-        // Layout
+        // Configura i pulsanti personalizzati
+        configuraPulsantiPersonalizzati();
+        HBox buttonBox = creaContainerPulsanti();
+        grid.add(buttonBox, 0, 6, 2, 1); // Posiziona in fondo
+        
+        getDialogPane().setContent(grid);
+        
+        // Configura il converter per il risultato
+        configuraResultConverter();
+    }
+
+    /**
+     * Crea e configura i campi del form
+     */
+    private void creaCampiForm() {
+        titoloField = new TextField(annuncioOriginale.getTitolo());
+        
+        // CORREZIONE: Gestione sicura del TextArea per evitare NullPointerException
+        String descrizione = annuncioOriginale.getDescrizione();
+        descrizioneArea = new TextArea(descrizione != null ? descrizione : "");
+        
+        prezzoField = new TextField(String.format("%.2f", annuncioOriginale.getPrezzo()));
+        tipologiaCombo = creaComboBoxTipologia();
+        consegnaCombo = creaComboBoxConsegna();
+    }
+
+    /**
+     * Crea e configura il GridPane principale
+     */
+    private GridPane creaGridPane() {
         GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(20, 150, 10, 10));
-        
-        // Campi del form
-        TextField titoloField = new TextField(annuncio.getOggetto().getNome());
-        TextArea descrizioneArea = new TextArea(annuncio.getOggetto().getDescrizione());
-        TextField prezzoField = new TextField(String.valueOf(annuncio.getPrezzo()));
+        grid.setHgap(SPACING_ORIZZONTALE);
+        grid.setVgap(SPACING_VERTICALE);
+        grid.setPadding(new Insets(PADDING_GRID, 150, 10, 10));
+        return grid;
+    }
+
+    /**
+     * Crea e configura la ComboBox per le tipologie
+     */
+    private ComboBox<Tipologia> creaComboBoxTipologia() {
         ComboBox<Tipologia> tipologiaCombo = new ComboBox<>();
         tipologiaCombo.getItems().addAll(Tipologia.values());
-        tipologiaCombo.setValue(annuncio.getTipologia());
-        TextField consegnaField = new TextField(annuncio.getModalitaConsegna());
+        tipologiaCombo.setValue(annuncioOriginale.getTipologia());
         
-        // Configura combobox
         tipologiaCombo.setConverter(new StringConverter<Tipologia>() {
             @Override
             public String toString(Tipologia tipo) {
-                return tipo.getDisplayName();
+                return tipo != null ? tipo.getDisplayName() : "";
             }
             
             @Override
@@ -59,55 +118,195 @@ public class ModificaAnnuncioDialog extends Dialog<Annuncio> {
             }
         });
         
-        // Aggiungi campi al grid
-        grid.add(new Label("Titolo:"), 0, 0);
-        grid.add(titoloField, 1, 0);
-        grid.add(new Label("Descrizione:"), 0, 1);
-        grid.add(descrizioneArea, 1, 1);
-        grid.add(new Label("Prezzo:"), 0, 2);
-        grid.add(prezzoField, 1, 2);
-        grid.add(new Label("Tipologia:"), 0, 3);
-        grid.add(tipologiaCombo, 1, 3);
-        grid.add(new Label("Modalità consegna:"), 0, 4);
-        grid.add(consegnaField, 1, 4);
+        return tipologiaCombo;
+    }
+
+    /**
+     * Crea e configura la ComboBox per la modalità di consegna
+     */
+    private ComboBox<String> creaComboBoxConsegna() {
+        ComboBox<String> consegnaCombo = new ComboBox<>();
+        consegnaCombo.getItems().addAll(
+            "Incontro di persona",
+            "Spedizione gratuita", 
+            "Spedizione a carico acquirente",
+            "Ritiro in sede",
+            "Standard",
+            "free"
+        );
         
-        // Aggiungi pulsanti personalizzati in fondo
+        // Imposta il valore corrente o un default
+        String modalitaCorrente = annuncioOriginale.getModalitaConsegna();
+        if (modalitaCorrente != null && !modalitaCorrente.isEmpty()) {
+            consegnaCombo.setValue(modalitaCorrente);
+        } else {
+            consegnaCombo.setValue("Incontro di persona");
+        }
+        
+        return consegnaCombo;
+    }
+
+    /**
+     * Aggiunge i campi al GridPane
+     */
+    private void aggiungiCampiAlGrid(GridPane grid) {
+        // Configura dimensioni campi
+        descrizioneArea.setPrefRowCount(4);
+        descrizioneArea.setWrapText(true);
+        
+        int row = 0;
+        grid.add(new Label("Titolo*:"), 0, row);
+        grid.add(titoloField, 1, row++);
+        
+        grid.add(new Label("Descrizione:"), 0, row);
+        grid.add(descrizioneArea, 1, row++);
+        
+        grid.add(new Label("Prezzo* (€):"), 0, row);
+        grid.add(prezzoField, 1, row++);
+        
+        grid.add(new Label("Tipologia*:"), 0, row);
+        grid.add(tipologiaCombo, 1, row++);
+        
+        grid.add(new Label("Modalità consegna*:"), 0, row);
+        grid.add(consegnaCombo, 1, row++);
+        
+        // Aggiungi note sui campi obbligatori
+        Label noteLabel = new Label("* Campi obbligatori");
+        noteLabel.setStyle("-fx-text-fill: #666; -fx-font-size: 11px;");
+        grid.add(noteLabel, 0, row, 2, 1);
+    }
+
+    /**
+     * Configura i pulsanti personalizzati
+     */
+    private void configuraPulsantiPersonalizzati() {
+        eliminaButton.setStyle(STILE_BOTTONE_ELIMINA);
+        concludeButton.setStyle(STILE_BOTTONE_CONCLUDI);
+    }
+
+    /**
+     * Crea il container per i pulsanti personalizzati
+     */
+    private HBox creaContainerPulsanti() {
         HBox buttonBox = new HBox(10, eliminaButton, concludeButton);
         buttonBox.setPadding(new Insets(15, 0, 0, 0));
-        grid.add(buttonBox, 0, 5, 2, 1);
-        
-        getDialogPane().setContent(grid);
-        
-        // Converti il risultato
+        return buttonBox;
+    }
+
+    /**
+     * Configura il result converter per il dialog
+     */
+    private void configuraResultConverter() {
         setResultConverter(dialogButton -> {
-            if (dialogButton == salvaButtonType) {
-                // Aggiorna l'oggetto
-                annuncio.getOggetto().setNome(titoloField.getText());
-                annuncio.getOggetto().setDescrizione(descrizioneArea.getText());
-                
-                // Aggiorna l'annuncio
-                try {
-                    annuncio.setPrezzo(Double.parseDouble(prezzoField.getText()));
-                } catch (NumberFormatException e) {
-                    // Gestisci errore di formato
-                    new Alert(Alert.AlertType.ERROR, "Inserisci un prezzo valido").show();
+            if (dialogButton.getButtonData() == ButtonBar.ButtonData.OK_DONE) {
+                // Validazione campi obbligatori
+                if (!validaCampi()) {
                     return null;
                 }
                 
-                annuncio.setTipologia(tipologiaCombo.getValue());
-                annuncio.setModalitaConsegna(consegnaField.getText());
+                // Crea una copia dell'annuncio originale per le modifiche
+                Annuncio annuncioModificato = creaAnnuncioModificato();
                 
-                return annuncio;
+                return annuncioModificato;
             }
             return null;
         });
-        
-        // Configura azioni pulsanti
-        setupButtonActions(annuncio);
     }
-    
-    private void setupButtonActions(Annuncio annuncio) {
-        // Azione per eliminare l'annuncio
+
+    /**
+     * Valida i campi obbligatori del form
+     */
+    private boolean validaCampi() {
+        // Valida titolo
+        if (titoloField.getText() == null || titoloField.getText().trim().isEmpty()) {
+            mostraErrore("Errore di validazione", "Il titolo è obbligatorio");
+            return false;
+        }
+        
+        // Valida prezzo - CORREZIONE: Gestione più robusta
+        String prezzoText = prezzoField.getText().trim();
+        if (prezzoText.isEmpty()) {
+            mostraErrore("Errore di validazione", "Il prezzo è obbligatorio");
+            return false;
+        }
+        
+        try {
+            // Rimuovi eventuali caratteri non numerici tranne punto e virgola
+            prezzoText = prezzoText.replace(",", ".");
+            
+            // Rimuovi spazi e caratteri non numerici
+            prezzoText = prezzoText.replaceAll("[^\\d.]", "");
+            
+            double prezzo = Double.parseDouble(prezzoText);
+            if (prezzo < 0) {
+                mostraErrore("Errore di validazione", "Il prezzo non può essere negativo");
+                return false;
+            }
+            
+            // Aggiorna il campo con il valore normalizzato
+            prezzoField.setText(String.format("%.2f", prezzo));
+            
+        } catch (NumberFormatException e) {
+            mostraErrore("Errore di validazione", "Inserisci un prezzo valido (es. 25.50 o 25,50)");
+            return false;
+        }
+        
+        // Valida tipologia
+        if (tipologiaCombo.getValue() == null) {
+            mostraErrore("Errore di validazione", "Seleziona una tipologia");
+            return false;
+        }
+        
+        // Valida modalità consegna
+        if (consegnaCombo.getValue() == null) {
+            mostraErrore("Errore di validazione", "Seleziona una modalità di consegna");
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Crea un annuncio modificato con i nuovi valori
+     */
+    private Annuncio creaAnnuncioModificato() {
+        Annuncio annuncioModificato = new Annuncio();
+        annuncioModificato.setId(annuncioOriginale.getId());
+        
+        // CORREZIONE: Gestione sicura dei campi per evitare NullPointerException
+        annuncioModificato.setTitolo(titoloField.getText() != null ? titoloField.getText().trim() : "");
+        
+        String descrizione = descrizioneArea.getText();
+        annuncioModificato.setDescrizione(descrizione != null ? descrizione.trim() : "");
+        
+        // CORREZIONE: Parsing robusto del prezzo
+        String prezzoText = prezzoField.getText().trim().replace(",", ".");
+        prezzoText = prezzoText.replaceAll("[^\\d.]", "");
+        annuncioModificato.setPrezzo(Double.parseDouble(prezzoText));
+        
+        annuncioModificato.setTipologia(tipologiaCombo.getValue());
+        annuncioModificato.setModalitaConsegna(consegnaCombo.getValue());
+        annuncioModificato.setVenditoreId(annuncioOriginale.getVenditoreId());
+        
+        // Copia l'oggetto originale
+        if (annuncioOriginale.getOggetto() != null) {
+            annuncioModificato.setOggetto(annuncioOriginale.getOggetto().clone());
+            annuncioModificato.getOggetto().setNome(titoloField.getText() != null ? titoloField.getText().trim() : "");
+            
+            String descrizioneOggetto = descrizioneArea.getText();
+            annuncioModificato.getOggetto().setDescrizione(descrizioneOggetto != null ? descrizioneOggetto.trim() : "");
+        }
+        
+        return annuncioModificato;
+    }
+
+
+    private void setupButtonActions() {
+        configuraAzioneElimina();
+        configuraAzioneConcludi();
+    }
+
+    private void configuraAzioneElimina() {
         eliminaButton.setOnAction(e -> {
             Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
             confirmAlert.setTitle("Conferma eliminazione");
@@ -116,24 +315,13 @@ public class ModificaAnnuncioDialog extends Dialog<Annuncio> {
             
             confirmAlert.showAndWait().ifPresent(response -> {
                 if (response == ButtonType.OK) {
-                    try {
-                        application.DB.AnnuncioDAO annuncioDAO = new application.DB.AnnuncioDAO();
-                        boolean successo = annuncioDAO.eliminaAnnuncio(annuncio.getId());
-                        
-                        if (successo) {
-                            new Alert(Alert.AlertType.INFORMATION, "Annuncio eliminato con successo").show();
-                            close(); // Chiudi la finestra di dialogo
-                        } else {
-                            new Alert(Alert.AlertType.ERROR, "Errore durante l'eliminazione dell'annuncio").show();
-                        }
-                    } catch (Exception ex) {
-                        new Alert(Alert.AlertType.ERROR, "Errore: " + ex.getMessage()).show();
-                    }
+                    eseguiEliminazioneAnnuncio();
                 }
             });
         });
-        
-        // Azione per segnare come concluso
+    }
+
+    private void configuraAzioneConcludi() {
         concludeButton.setOnAction(e -> {
             Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
             confirmAlert.setTitle("Conferma conclusione");
@@ -142,25 +330,60 @@ public class ModificaAnnuncioDialog extends Dialog<Annuncio> {
             
             confirmAlert.showAndWait().ifPresent(response -> {
                 if (response == ButtonType.OK) {
-                    try {
-                        application.DB.AnnuncioDAO annuncioDAO = new application.DB.AnnuncioDAO();
-                        boolean successo = annuncioDAO.aggiornaStatoAnnuncio(annuncio.getId(), "VENDUTO");
-                        
-                        if (successo) {
-                            new Alert(Alert.AlertType.INFORMATION, "Annuncio segnato come concluso").show();
-                            close(); // Chiudi la finestra di dialogo
-                        } else {
-                            new Alert(Alert.AlertType.ERROR, "Errore durante l'aggiornamento dell'annuncio").show();
-                        }
-                    } catch (Exception ex) {
-                        new Alert(Alert.AlertType.ERROR, "Errore: " + ex.getMessage()).show();
-                    }
+                    eseguiConclusioneAnnuncio();
                 }
             });
         });
     }
-    
-    // Metodi per ottenere i pulsanti (opzionale, se necessario dall'esterno)
+
+    private void eseguiEliminazioneAnnuncio() {
+        try {
+            AnnuncioDAO annuncioDAO = new AnnuncioDAO();
+            boolean successo = annuncioDAO.eliminaAnnuncio(annuncioOriginale.getId());
+            
+            if (successo) {
+                mostraSuccesso("Annuncio eliminato con successo");
+                close();
+            } else {
+                mostraErrore("Errore", "Impossibile eliminare l'annuncio");
+            }
+        } catch (Exception ex) {
+            mostraErrore("Errore", "Errore durante l'eliminazione: " + ex.getMessage());
+        }
+    }
+
+    private void eseguiConclusioneAnnuncio() {
+        try {
+            AnnuncioDAO annuncioDAO = new AnnuncioDAO();
+            boolean successo = annuncioDAO.aggiornaStatoAnnuncio(annuncioOriginale.getId(), "VENDUTO");
+            
+            if (successo) {
+                mostraSuccesso("Annuncio segnato come concluso");
+                close();
+            } else {
+                mostraErrore("Errore", "Impossibile aggiornare lo stato dell'annuncio");
+            }
+        } catch (Exception ex) {
+            mostraErrore("Errore", "Errore durante l'aggiornamento: " + ex.getMessage());
+        }
+    }
+
+    private void mostraErrore(String titolo, String messaggio) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(titolo);
+        alert.setHeaderText(null);
+        alert.setContentText(messaggio);
+        alert.showAndWait();
+    }
+
+    private void mostraSuccesso(String messaggio) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Operazione completata");
+        alert.setHeaderText(null);
+        alert.setContentText(messaggio);
+        alert.showAndWait();
+    }
+
     public Button getEliminaButton() {
         return eliminaButton;
     }

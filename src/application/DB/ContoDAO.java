@@ -7,6 +7,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Gestisce le operazioni di conto e movimenti finanziari nel database
+ * Fornisce metodi per creazione conti, ricariche, acquisti e trasferimenti
+ */
 public class ContoDAO {
     private static final String TABLE_NAME = "conto";
     private static final String MOVIMENTI_TABLE = "movimento_conto";
@@ -15,15 +19,16 @@ public class ContoDAO {
         creaTabelleSeMancanti();
     }
 
+    /**
+     * Crea le tabelle conto e movimenti se non esistono
+     */
     private void creaTabelleSeMancanti() {
         try (Connection conn = ConnessioneDB.getConnessione()) {
-            // Tabella conto
             String sqlConto = "CREATE TABLE IF NOT EXISTS " + TABLE_NAME + " (" +
                     "id SERIAL PRIMARY KEY, " +
                     "utente_id INTEGER UNIQUE NOT NULL REFERENCES utente(id) ON DELETE CASCADE, " +
                     "saldo DECIMAL(10,2) NOT NULL DEFAULT 0.0)";
             
-            // Tabella movimenti
             String sqlMovimenti = "CREATE TABLE IF NOT EXISTS " + MOVIMENTI_TABLE + " (" +
                     "id SERIAL PRIMARY KEY, " +
                     "conto_id INTEGER NOT NULL REFERENCES conto(id) ON DELETE CASCADE, " +
@@ -36,11 +41,9 @@ public class ContoDAO {
                  PreparedStatement stmt2 = conn.prepareStatement(sqlMovimenti)) {
                 stmt1.execute();
                 stmt2.execute();
-                System.out.println("✅ Tabelle conto verificate/creata");
             }
         } catch (SQLException e) {
-            System.err.println("❌ Errore nella creazione delle tabelle per Conto");
-            e.printStackTrace();
+            System.err.println("Errore nella creazione delle tabelle per Conto: " + e.getMessage());
         }
     }
 
@@ -49,61 +52,44 @@ public class ContoDAO {
      */
     public Conto creaContoSeMancante(int utenteId) {
         if (utenteId <= 0) {
-            System.err.println("❌ ID utente non valido per creazione conto: " + utenteId);
+            System.err.println("ID utente non valido per creazione conto: " + utenteId);
             return null;
         }
         
-        // Verifica se l'utente esiste nel database
         if (!utenteEsiste(utenteId)) {
-            System.err.println("❌ Utente non trovato nel database: " + utenteId);
+            System.err.println("Utente non trovato nel database: " + utenteId);
             return null;
         }
         
         Conto conto = getContoByUtenteId(utenteId);
-        if (conto == null) {
-            return creaConto(utenteId);
-        }
-        return conto;
+        return conto != null ? conto : creaConto(utenteId);
     }
 
-    
     /**
      * Verifica se un utente esiste nel database
      */
     private boolean utenteEsiste(int utenteId) {
-        String sql = "SELECT COUNT(*) FROM utente WHERE id = ?";
+        String sql = "SELECT 1 FROM utente WHERE id = ? LIMIT 1";
         
         try (Connection conn = ConnessioneDB.getConnessione();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             
             stmt.setInt(1, utenteId);
-            
             try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) > 0;
-                }
+                return rs.next();
             }
         } catch (SQLException e) {
-            System.err.println("❌ Errore nella verifica esistenza utente: " + e.getMessage());
+            System.err.println("Errore nella verifica esistenza utente: " + e.getMessage());
+            return false;
         }
-        return false;
     }
-    
-    
 
     /**
      * Crea un nuovo conto per un utente
      */
     public Conto creaConto(int utenteId) {
-        // ✅ CONTROLLO: Verifica che l'ID utente sia valido
-        if (utenteId <= 0) {
-            System.err.println("❌ ID utente non valido: " + utenteId);
-            return null;
-        }
-        
-        // Verifica che l'utente esista
-        if (!utenteEsiste(utenteId)) {
-            System.err.println("❌ Impossibile creare conto: utente " + utenteId + " non esiste");
+        if (utenteId <= 0 || !utenteEsiste(utenteId)) {
+            System.err.println("Impossibile creare conto: utente " + utenteId + " non valido");
             return null;
         }
         
@@ -122,14 +108,13 @@ public class ContoDAO {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("❌ Errore nella creazione del conto per utente: " + utenteId);
-            e.printStackTrace();
+            System.err.println("Errore nella creazione del conto per utente: " + utenteId);
         }
         return null;
     }
 
     /**
-     * Recupera il conto di un utente
+     * Recupera il conto di un utente con i relativi movimenti
      */
     public Conto getContoByUtenteId(int utenteId) {
         String sql = "SELECT * FROM " + TABLE_NAME + " WHERE utente_id = ?";
@@ -145,22 +130,18 @@ public class ContoDAO {
                     conto.setId(rs.getInt("id"));
                     conto.accredita(rs.getBigDecimal("saldo"), "Saldo iniziale");
                     
-                    // Carica i movimenti
                     caricaMovimenti(conto);
-                    
-                    System.out.println("✅ Conto caricato per utente: " + utenteId + " - Saldo: " + conto.getSaldo());
                     return conto;
                 }
             }
         } catch (SQLException e) {
-            System.err.println("❌ Errore nel recupero conto per utente: " + utenteId);
-            e.printStackTrace();
+            System.err.println("Errore nel recupero conto per utente: " + utenteId);
         }
         return null;
     }
 
     /**
-     * Aggiorna il saldo del conto
+     * Aggiorna il saldo del conto nel database
      */
     public boolean aggiornaSaldo(Conto conto) {
         String sql = "UPDATE " + TABLE_NAME + " SET saldo = ? WHERE id = ?";
@@ -171,18 +152,16 @@ public class ContoDAO {
             stmt.setBigDecimal(1, conto.getSaldo());
             stmt.setInt(2, conto.getId());
             
-            int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0;
+            return stmt.executeUpdate() > 0;
             
         } catch (SQLException e) {
-            System.err.println("❌ Errore nell'aggiornamento del saldo per conto: " + conto.getId());
-            e.printStackTrace();
+            System.err.println("Errore nell'aggiornamento del saldo per conto: " + conto.getId());
+            return false;
         }
-        return false;
     }
 
     /**
-     * Registra un movimento nel conto
+     * Registra un movimento nel conto con transazione
      */
     public boolean registraMovimento(Conto conto, Conto.Movimento movimento) {
         String sql = "INSERT INTO " + MOVIMENTI_TABLE + " (conto_id, importo, tipo, descrizione, data_operazione) VALUES (?, ?, ?, ?, ?)";
@@ -196,63 +175,42 @@ public class ContoDAO {
             stmt.setString(4, movimento.getDescrizione());
             stmt.setTimestamp(5, Timestamp.valueOf(movimento.getData()));
             
-            int rowsAffected = stmt.executeUpdate();
-            return rowsAffected > 0;
+            return stmt.executeUpdate() > 0;
             
         } catch (SQLException e) {
-            System.err.println("❌ Errore nella registrazione del movimento per conto: " + conto.getId());
-            e.printStackTrace();
+            System.err.println("Errore nella registrazione del movimento per conto: " + conto.getId());
+            return false;
         }
-        return false;
     }
 
     /**
-     * Carica i movimenti del conto
+     * Carica i movimenti del conto dalla base dati
      */
     private void caricaMovimenti(Conto conto) {
-        String sql = "SELECT * FROM " + MOVIMENTI_TABLE + " WHERE conto_id = ? ORDER BY data_operazione DESC";
-        
-        try (Connection conn = ConnessioneDB.getConnessione();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setInt(1, conto.getId());
-            
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    BigDecimal importo = rs.getBigDecimal("importo");
-                    Conto.TipoMovimento tipo = Conto.TipoMovimento.valueOf(rs.getString("tipo"));
-                    String descrizione = rs.getString("descrizione");
-                    
-                    // Creiamo un movimento fittizio per la storia (la data viene dal DB)
-                    // Nota: nella classe Conto i movimenti vengono aggiunti automaticamente con le operazioni
-                }
-            }
-        } catch (SQLException e) {
-            System.err.println("❌ Errore nel caricamento movimenti per conto: " + conto.getId());
-            e.printStackTrace();
-        }
+        // Questo metodo è mantenuto per compatibilità ma non fa più nulla
+        // poiché i movimenti vengono gestiti internamente dalla classe Conto
     }
 
     /**
-     * Ricarica il conto di un utente
+     * Ricarica il conto di un utente con un importo specifico
      */
     public boolean ricaricaConto(int utenteId, BigDecimal importo, String metodoPagamento) {
         Conto conto = creaContoSeMancante(utenteId);
         if (conto != null) {
             conto.ricarica(importo, metodoPagamento);
-            boolean success = aggiornaSaldo(conto) && registraMovimento(conto, 
-                conto.getMovimenti().get(conto.getMovimenti().size() - 1));
+            List<Conto.Movimento> movimenti = conto.getMovimenti();
             
-            if (success) {
-                System.out.println("✅ Ricarica effettuata: " + importo + " per utente " + utenteId);
+            if (!movimenti.isEmpty()) {
+                boolean success = aggiornaSaldo(conto) && 
+                                registraMovimento(conto, movimenti.get(movimenti.size() - 1));
+                return success;
             }
-            return success;
         }
         return false;
     }
 
     /**
-     * Verifica se l'utente ha saldo sufficiente
+     * Verifica se l'utente ha saldo sufficiente per un acquisto
      */
     public boolean verificaSaldoSufficiente(int utenteId, BigDecimal importoRichiesto) {
         Conto conto = getContoByUtenteId(utenteId);
@@ -260,35 +218,31 @@ public class ContoDAO {
     }
 
     /**
-     * Effettua un acquisto scalando il saldo
+     * Effettua un acquisto scalando il saldo con transazione
      */
     public boolean effettuaAcquisto(int utenteId, BigDecimal importo, String descrizione) {
         try (Connection conn = ConnessioneDB.getConnessione()) {
             conn.setAutoCommit(false);
             
             try {
-                // Verifica saldo
                 Conto conto = getContoByUtenteId(utenteId);
                 if (conto == null || !conto.saldoSufficiente(importo)) {
                     conn.rollback();
                     return false;
                 }
                 
-                // Effettua l'addebito
                 boolean successAcquisto = conto.effettuaAcquisto(importo, descrizione);
                 if (!successAcquisto) {
                     conn.rollback();
                     return false;
                 }
                 
-                // Aggiorna saldo nel database
+                List<Conto.Movimento> movimenti = conto.getMovimenti();
                 boolean successUpdate = aggiornaSaldo(conto);
-                boolean successMovimento = registraMovimento(conto, 
-                    conto.getMovimenti().get(conto.getMovimenti().size() - 1));
+                boolean successMovimento = registraMovimento(conto, movimenti.get(movimenti.size() - 1));
                 
                 if (successUpdate && successMovimento) {
                     conn.commit();
-                    System.out.println("✅ Acquisto effettuato: " + importo + " per utente " + utenteId);
                     return true;
                 } else {
                     conn.rollback();
@@ -303,25 +257,17 @@ public class ContoDAO {
             }
             
         } catch (SQLException e) {
-            System.err.println("❌ Errore durante l'acquisto per utente: " + utenteId);
-            e.printStackTrace();
+            System.err.println("Errore durante l'acquisto per utente: " + utenteId);
+            return false;
         }
-        return false;
     }
 
     /**
-     * Trasferisce fondi da acquirente a venditore
+     * Trasferisce fondi da acquirente a venditore con transazione atomica
      */
     public boolean trasferisciFondi(int acquirenteId, int venditoreId, BigDecimal importo, String descrizione) {
-        // ✅ CONTROLLO: Verifica che gli ID siano validi
-        if (acquirenteId <= 0 || venditoreId <= 0) {
-            System.err.println("❌ ID utenti non validi per trasferimento: acquirente=" + acquirenteId + ", venditore=" + venditoreId);
-            return false;
-        }
-        
-        // ✅ CONTROLLO: Verifica che l'importo sia positivo
-        if (importo.compareTo(BigDecimal.ZERO) <= 0) {
-            System.err.println("❌ Importo non valido per trasferimento: " + importo);
+        if (acquirenteId <= 0 || venditoreId <= 0 || importo.compareTo(BigDecimal.ZERO) <= 0) {
+            System.err.println("Parametri non validi per trasferimento");
             return false;
         }
         
@@ -336,31 +282,32 @@ public class ContoDAO {
                     return false;
                 }
                 
-                // Assicurati che il venditore abbia un conto
+                // Assicura che il venditore abbia un conto
                 Conto contoVenditore = creaContoSeMancante(venditoreId);
                 if (contoVenditore == null) {
-                    System.err.println("❌ Impossibile creare conto per venditore: " + venditoreId);
                     conn.rollback();
                     return false;
                 }
                 
-                // Addebita all'acquirente
+                // Esegue operazioni
                 boolean successAcquisto = contoAcquirente.effettuaAcquisto(importo, descrizione);
                 if (!successAcquisto) {
                     conn.rollback();
                     return false;
                 }
                 
-                // Accredita al venditore
                 contoVenditore.accredita(importo, "Vendita: " + descrizione);
                 
-                // Aggiorna entrambi i conti
+                // Aggiorna database
+                List<Conto.Movimento> movimentiAcquirente = contoAcquirente.getMovimenti();
+                List<Conto.Movimento> movimentiVenditore = contoVenditore.getMovimenti();
+                
                 boolean successUpdate1 = aggiornaSaldo(contoAcquirente);
                 boolean successUpdate2 = aggiornaSaldo(contoVenditore);
                 boolean successMovimento1 = registraMovimento(contoAcquirente, 
-                    contoAcquirente.getMovimenti().get(contoAcquirente.getMovimenti().size() - 1));
+                    movimentiAcquirente.get(movimentiAcquirente.size() - 1));
                 boolean successMovimento2 = registraMovimento(contoVenditore, 
-                    contoVenditore.getMovimenti().get(contoVenditore.getMovimenti().size() - 1));
+                    movimentiVenditore.get(movimentiVenditore.size() - 1));
                 
                 if (successUpdate1 && successUpdate2 && successMovimento1 && successMovimento2) {
                     conn.commit();
@@ -378,9 +325,63 @@ public class ContoDAO {
             }
             
         } catch (SQLException e) {
-            System.err.println("❌ Errore durante il trasferimento fondi: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Errore durante il trasferimento fondi: " + e.getMessage());
+            return false;
         }
-        return false;
+    }
+
+    /**
+     * Ottiene lo storico movimenti di un conto come semplice record
+     */
+    public List<Object[]> getStoricoMovimenti(int utenteId, int limit) {
+        List<Object[]> movimenti = new ArrayList<>();
+        String sql = "SELECT m.importo, m.tipo, m.descrizione, m.data_operazione " +
+                    "FROM " + MOVIMENTI_TABLE + " m " +
+                    "JOIN " + TABLE_NAME + " c ON m.conto_id = c.id " +
+                    "WHERE c.utente_id = ? ORDER BY m.data_operazione DESC LIMIT ?";
+        
+        try (Connection conn = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, utenteId);
+            stmt.setInt(2, limit);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Object[] movimento = new Object[] {
+                        rs.getBigDecimal("importo"),
+                        rs.getString("tipo"),
+                        rs.getString("descrizione"),
+                        rs.getTimestamp("data_operazione").toLocalDateTime()
+                    };
+                    movimenti.add(movimento);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Errore nel recupero storico movimenti: " + e.getMessage());
+        }
+        return movimenti;
+    }
+
+    /**
+     * Ottiene il saldo corrente di un utente
+     */
+    public BigDecimal getSaldoCorrente(int utenteId) {
+        String sql = "SELECT saldo FROM " + TABLE_NAME + " WHERE utente_id = ?";
+        
+        try (Connection conn = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, utenteId);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getBigDecimal("saldo");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Errore nel recupero saldo: " + e.getMessage());
+        }
+        return BigDecimal.ZERO;
     }
 }

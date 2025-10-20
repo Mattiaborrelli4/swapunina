@@ -8,15 +8,19 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import schermata.FinestraMessaggi;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -31,7 +35,7 @@ public class ChatListDialog {
     public ChatListDialog() {
         stage = new Stage();
         stage.setTitle("Le tue conversazioni");
-        stage.setWidth(400);
+        stage.setWidth(450); // Leggermente più largo per le immagini
         stage.setHeight(500);
         
         messaggioDAO = new MessaggioDAO();
@@ -46,46 +50,9 @@ public class ChatListDialog {
         titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 18));
         titleLabel.setPadding(new Insets(10));
         
-        // Lista chat
+        // Lista chat con immagini profilo
         chatListView = new ListView<>();
-        chatListView.setCellFactory(param -> new ListCell<utente>() {
-            @Override
-            protected void updateItem(utente user, boolean empty) {
-                super.updateItem(user, empty);
-                
-                if (empty || user == null) {
-                    setText(null);
-                    setGraphic(null);
-                } else {
-                    HBox hbox = new HBox(10);
-                    hbox.setAlignment(Pos.CENTER_LEFT);
-                    hbox.setPadding(new Insets(5));
-                    
-                    // Icona utente semplificata (cerchio grigio)
-                    Region iconPlaceholder = new Region();
-                    iconPlaceholder.setPrefSize(30, 30);
-                    iconPlaceholder.setStyle("-fx-background-color: #e0e0e0; -fx-background-radius: 15;");
-                    
-                    // Info utente con preview ultimo messaggio
-                    VBox vbox = new VBox(2);
-                    Label nameLabel = new Label(user.getNome() + " " + user.getCognome());
-                    nameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-                    
-                    // Preview ultimo messaggio
-                    String ultimoMessaggio = getUltimoMessaggioPreview(SessionManager.getCurrentUserId(), user.getId());
-                    Label previewLabel = new Label(ultimoMessaggio);
-                    previewLabel.setFont(Font.font("Arial", 12));
-                    previewLabel.setStyle("-fx-text-fill: gray;");
-                    previewLabel.setMaxWidth(300);
-                    previewLabel.setWrapText(true);
-                    
-                    vbox.getChildren().addAll(nameLabel, previewLabel);
-                    hbox.getChildren().addAll(iconPlaceholder, vbox);
-                    
-                    setGraphic(hbox);
-                }
-            }
-        });
+        chatListView.setCellFactory(param -> new ChatListCell());
         
         // Gestione click su chat
         chatListView.setOnMouseClicked(event -> {
@@ -178,7 +145,7 @@ public class ChatListDialog {
         return "Nessun messaggio ancora";
     }
 
-    // Metodo per mostrare timestamp dell'ultimo messaggio (opzionale)
+    // Metodo per mostrare timestamp dell'ultimo messaggio
     private String getUltimoMessaggioTimestamp(int currentUserId, int otherUserId) {
         String query = """
             SELECT data_invio 
@@ -243,8 +210,52 @@ public class ChatListDialog {
         stage.toFront();
     }
 
-    // Versione avanzata del ListCell con timestamp (opzionale)
+    // Classe interna per le celle della lista con immagini profilo
     private class ChatListCell extends ListCell<utente> {
+        private final ImageView imageView = new ImageView();
+        private final Label nameLabel = new Label();
+        private final Label previewLabel = new Label();
+        private final Label timeLabel = new Label();
+        private final HBox mainHBox = new HBox(10);
+        private final VBox contentBox = new VBox(3);
+        private final Region spacer = new Region();
+
+        public ChatListCell() {
+            super();
+            
+            // Configurazione ImageView
+            imageView.setFitHeight(40);
+            imageView.setFitWidth(40);
+            imageView.setPreserveRatio(true);
+            
+            // Rendi l'immagine circolare
+            Circle clip = new Circle(20, 20, 20);
+            imageView.setClip(clip);
+            
+            // Stile per l'immagine
+            imageView.setStyle("-fx-border-radius: 20px; -fx-border-color: #e0e0e0; -fx-border-width: 1px;");
+            
+            // Configurazione label
+            nameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+            nameLabel.setStyle("-fx-text-fill: #333333;");
+            
+            previewLabel.setFont(Font.font("Arial", 12));
+            previewLabel.setStyle("-fx-text-fill: #666666;");
+            previewLabel.setMaxWidth(250);
+            previewLabel.setWrapText(true);
+            
+            timeLabel.setFont(Font.font("Arial", 10));
+            timeLabel.setStyle("-fx-text-fill: #999999;");
+            
+            // Layout
+            contentBox.getChildren().addAll(nameLabel, previewLabel);
+            HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+            
+            mainHBox.setAlignment(Pos.CENTER_LEFT);
+            mainHBox.setPadding(new Insets(8));
+            mainHBox.getChildren().addAll(imageView, contentBox, spacer, timeLabel);
+        }
+
         @Override
         protected void updateItem(utente user, boolean empty) {
             super.updateItem(user, empty);
@@ -253,46 +264,87 @@ public class ChatListDialog {
                 setText(null);
                 setGraphic(null);
             } else {
-                HBox mainHBox = new HBox(10);
-                mainHBox.setAlignment(Pos.CENTER_LEFT);
-                mainHBox.setPadding(new Insets(8));
+                nameLabel.setText(user.getNome() + " " + user.getCognome());
                 
-                // Icona utente
-                Region icon = new Region();
-                icon.setPrefSize(40, 40);
-                icon.setStyle("-fx-background-color: #4CAF50; -fx-background-radius: 20;");
-                
-                // Contenuto principale
-                VBox contentBox = new VBox(3);
-                
-                // Nome utente
-                Label nameLabel = new Label(user.getNome() + " " + user.getCognome());
-                nameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
-                nameLabel.setStyle("-fx-text-fill: #333333;");
-                
-                // Anteprima ultimo messaggio
                 String preview = getUltimoMessaggioPreview(SessionManager.getCurrentUserId(), user.getId());
-                Label previewLabel = new Label(preview);
-                previewLabel.setFont(Font.font("Arial", 12));
-                previewLabel.setStyle("-fx-text-fill: #666666;");
-                previewLabel.setMaxWidth(250);
-                previewLabel.setWrapText(true);
+                previewLabel.setText(preview);
                 
-                contentBox.getChildren().addAll(nameLabel, previewLabel);
-                
-                // Spacer
-                Region spacer = new Region();
-                HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
-                
-                // Timestamp
                 String timestamp = getUltimoMessaggioTimestamp(SessionManager.getCurrentUserId(), user.getId());
-                Label timeLabel = new Label(timestamp);
-                timeLabel.setFont(Font.font("Arial", 10));
-                timeLabel.setStyle("-fx-text-fill: #999999;");
+                timeLabel.setText(timestamp);
                 
-                mainHBox.getChildren().addAll(icon, contentBox, spacer, timeLabel);
+                // Carica l'immagine profilo
+                loadProfileImage(user.getFotoProfilo());
+                
                 setGraphic(mainHBox);
             }
+        }
+
+        private void loadProfileImage(String imagePath) {
+            try {
+                Image image;
+                
+                if (imagePath == null || imagePath.isEmpty()) {
+                    // Nessuna immagine, usa predefinita
+                    image = getDefaultProfileImage();
+                } else if (imagePath.contains("cloudinary.com") || imagePath.startsWith("http")) {
+                    // È un URL Cloudinary - carica direttamente
+                    System.out.println("☁️ Caricamento immagine profilo da Cloudinary: " + imagePath);
+                    image = new Image(imagePath, 40, 40, true, true, true);
+                } else {
+                    // È un percorso di file locale - converti in URL file
+                    System.out.println("💾 Caricamento immagine profilo da file locale: " + imagePath);
+                    File file = new File(imagePath);
+                    if (file.exists()) {
+                        String fileUrl = file.toURI().toString();
+                        image = new Image(fileUrl, 40, 40, true, true, true);
+                    } else {
+                        // File non trovato, usa immagine predefinita
+                        System.err.println("❌ File immagine profilo non trovato: " + imagePath);
+                        image = getDefaultProfileImage();
+                    }
+                }
+                
+                if (image != null && !image.isError()) {
+                    imageView.setImage(image);
+                } else {
+                    imageView.setImage(getDefaultProfileImage());
+                }
+                
+            } catch (Exception e) {
+                System.err.println("❌ Errore nel caricamento immagine profilo: " + e.getMessage());
+                imageView.setImage(getDefaultProfileImage());
+            }
+        }
+
+        private Image getDefaultProfileImage() {
+            try {
+                // Prova a caricare un'immagine predefinita dalle risorse
+                Image defaultImage = new Image(getClass().getResourceAsStream("/images/default_profile.png"));
+                if (!defaultImage.isError()) {
+                    return defaultImage;
+                }
+            } catch (Exception e) {
+                System.err.println("⚠️ Impossibile caricare l'immagine predefinita dalle risorse: " + e.getMessage());
+            }
+            
+            try {
+                // Prova a caricare da file system
+                Image defaultImage = new Image("file:default_profile.png");
+                if (!defaultImage.isError()) {
+                    return defaultImage;
+                }
+            } catch (Exception e) {
+                System.err.println("⚠️ Impossibile caricare l'immagine predefinita da file: " + e.getMessage());
+            }
+            
+            // Crea un'immagine placeholder con un cerchio grigio
+            System.out.println("🎨 Usando immagine placeholder predefinita per profilo");
+            return createDefaultPlaceholder();
+        }
+
+        private Image createDefaultPlaceholder() {
+            // Ritorna null per usare il background color del cerchio
+            return null;
         }
     }
 }

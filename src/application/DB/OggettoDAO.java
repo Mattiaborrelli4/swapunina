@@ -11,6 +11,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Gestisce le operazioni CRUD per gli oggetti nel database
+ * Fornisce metodi per salvataggio, recupero e gestione degli oggetti
+ */
 public class OggettoDAO {
     private static final String TABLE_NAME = "oggetto";
 
@@ -18,45 +22,43 @@ public class OggettoDAO {
         creaTabellaSeMancante();
     }
 
+    /**
+     * Crea la tabella oggetto se non esiste
+     */
     private void creaTabellaSeMancante() {
-        try (Connection conn = ConnessioneDB.getConnessione()) {
-            String sql = "CREATE TABLE IF NOT EXISTS " + TABLE_NAME + " (" +
+        String sql = "CREATE TABLE IF NOT EXISTS " + TABLE_NAME + " (" +
                 "id SERIAL PRIMARY KEY, " +
                 "nome VARCHAR(255) NOT NULL, " +
                 "descrizione TEXT, " +
-                "categoria_id INTEGER NOT NULL, " + // ✅ CORRETTO: categoria_id invece di categoria
+                "categoria_id INTEGER NOT NULL, " +
                 "origine VARCHAR(50), " +
                 "dettagli TEXT, " +
                 "image_url VARCHAR(255) DEFAULT NULL)";
 
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.execute();
-                System.out.println("Tabella " + TABLE_NAME + " verificata/creata");
-            }
+        try (Connection conn = ConnessioneDB.getConnessione();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute(sql);
         } catch (SQLException e) {
-            System.err.println("Errore verifica/creazione tabella " + TABLE_NAME);
-            e.printStackTrace();
+            System.err.println("Errore creazione tabella oggetto: " + e.getMessage());
         }
     }
 
     /**
-     * Salva un oggetto nel database (metodo statico per compatibilità)
+     * Salva un oggetto nel database e restituisce l'ID generato
      */
     public static int salvaOggetto(Oggetto oggetto) {
-        try (Connection connection = ConnessioneDB.getConnessione()) {
-            // Query aggiornata con categoria_id
-            String query = "INSERT INTO oggetto (nome, descrizione, categoria_id, image_url, origine) " +
-                         "VALUES (?, ?, ?, ?, ?) RETURNING id";
+        String query = "INSERT INTO oggetto (nome, descrizione, categoria_id, image_url, origine) " +
+                     "VALUES (?, ?, ?, ?, ?) RETURNING id";
+        
+        try (Connection connection = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = connection.prepareStatement(query)) {
             
-            PreparedStatement stmt = connection.prepareStatement(query);
             stmt.setString(1, oggetto.getNome());
             stmt.setString(2, oggetto.getDescrizione());
             
-            // ✅ CORREZIONE: Converti categoria enum in ID numerico
             int categoriaId = convertiCategoriaInId(oggetto.getCategoria());
             stmt.setInt(3, categoriaId);
             
-            // Gestione immagine (può essere null)
             String imageUrl = oggetto.getImageUrl();
             if (imageUrl == null || imageUrl.trim().isEmpty()) {
                 stmt.setNull(4, Types.VARCHAR);
@@ -64,28 +66,20 @@ public class OggettoDAO {
                 stmt.setString(4, imageUrl);
             }
             
-            // Origine come stringa
             stmt.setString(5, oggetto.getOrigine().name());
             
-            ResultSet rs = stmt.executeQuery();
-            
-            if (rs.next()) {
-                int nuovoId = rs.getInt("id");
-                System.out.println("✅ Oggetto salvato con ID: " + nuovoId);
-                return nuovoId;
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() ? rs.getInt("id") : -1;
             }
             
-            return -1;
-            
         } catch (SQLException e) {
-            System.err.println("❌ Errore nel salvataggio oggetto: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Errore nel salvataggio oggetto: " + e.getMessage());
             return -1;
         }
     }
 
     /**
-     * Inserisce un oggetto con connessione esistente (per transazioni)
+     * Inserisce un oggetto usando una connessione esistente (per transazioni)
      */
     public int inserisciOggetto(Connection conn, Oggetto oggetto) throws SQLException {
         String sql = "INSERT INTO oggetto (nome, descrizione, categoria_id, image_url, origine) " +
@@ -95,7 +89,6 @@ public class OggettoDAO {
             stmt.setString(1, oggetto.getNome());
             stmt.setString(2, oggetto.getDescrizione());
             
-            // ✅ CORREZIONE: Converti categoria enum in ID numerico
             int categoriaId = convertiCategoriaInId(oggetto.getCategoria());
             stmt.setInt(3, categoriaId);
             
@@ -117,6 +110,9 @@ public class OggettoDAO {
         throw new SQLException("Inserimento oggetto fallito");
     }
 
+    /**
+     * Recupera un oggetto tramite ID
+     */
     public Oggetto getOggettoById(int id) {
         String sql = "SELECT * FROM " + TABLE_NAME + " WHERE id = ?";
 
@@ -125,56 +121,35 @@ public class OggettoDAO {
 
             stmt.setInt(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapResultSetToOggetto(rs);
-                }
+                return rs.next() ? mapResultSetToOggetto(rs) : null;
             }
         } catch (SQLException e) {
             System.err.println("Errore recupero oggetto per id: " + id);
-            e.printStackTrace();
+            return null;
         }
-        return null;
     }
 
     /**
-     * Mappa un ResultSet a un oggetto Oggetto
+     * Converte un ResultSet in un oggetto Oggetto
      */
     private Oggetto mapResultSetToOggetto(ResultSet rs) throws SQLException {
         int id = rs.getInt("id");
         String nome = rs.getString("nome");
         String descrizione = rs.getString("descrizione");
         
-        // ✅ CORREZIONE: Recupera categoria_id e converti in enum
         int categoriaId = rs.getInt("categoria_id");
         Categoria categoria = fromIntCategoria(categoriaId);
 
         String imageUrl = rs.getString("image_url");
         String dettagliStr = rs.getString("dettagli");
 
-        // Gestione file immagine
-        File immagineFile = null;
-        if (imageUrl != null && !imageUrl.isEmpty() && !imageUrl.equals("null")) {
-            try {
-                // Percorso corretto per l'immagine
-                immagineFile = new File("C:/Users/matti/Desktop/project" + imageUrl);
-                if (!immagineFile.exists()) {
-                    immagineFile = null;
-                    System.err.println("⚠️ Immagine non trovata: " + imageUrl);
-                }
-            } catch (Exception e) {
-                System.err.println("❌ Errore caricamento immagine: " + imageUrl);
-                immagineFile = null;
-            }
-        }
+        File immagineFile = caricaFileImmagine(imageUrl);
 
-        // Conversione origine da stringa a enum
         String origineStr = rs.getString("origine");
         OrigineOggetto origine = OrigineOggetto.parseOrigine(origineStr);
 
-        // Creazione oggetto
         Oggetto oggetto = new Oggetto(id, nome, descrizione, categoria, imageUrl, immagineFile, origine);
 
-        // Aggiunta dettagli se presenti
         if (dettagliStr != null && !dettagliStr.isEmpty()) {
             Map<String, String> dettagli = parseDettagli(dettagliStr);
             for (Map.Entry<String, String> entry : dettagli.entrySet()) {
@@ -186,7 +161,22 @@ public class OggettoDAO {
     }
 
     /**
-     * Parsa i dettagli dalla stringa del database
+     * Carica il file immagine dal percorso specificato
+     */
+    private File caricaFileImmagine(String imageUrl) {
+        if (imageUrl != null && !imageUrl.isEmpty() && !imageUrl.equals("null")) {
+            try {
+                File file = new File("C:/Users/matti/Desktop/project" + imageUrl);
+                return file.exists() ? file : null;
+            } catch (Exception e) {
+                System.err.println("Errore caricamento immagine: " + imageUrl);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Parsa la stringa dei dettagli in una mappa chiave-valore
      */
     private Map<String, String> parseDettagli(String dettagliStr) {
         Map<String, String> dettagli = new HashMap<>();
@@ -206,6 +196,9 @@ public class OggettoDAO {
         return dettagli;
     }
 
+    /**
+     * Recupera tutti gli oggetti dal database
+     */
     public List<Oggetto> getTuttiOggetti() {
         List<Oggetto> oggetti = new ArrayList<>();
         String sql = "SELECT * FROM " + TABLE_NAME;
@@ -218,24 +211,24 @@ public class OggettoDAO {
                 oggetti.add(mapResultSetToOggetto(rs));
             }
         } catch (SQLException e) {
-            System.err.println("Errore recupero oggetti");
-            e.printStackTrace();
+            System.err.println("Errore recupero oggetti: " + e.getMessage());
         }
         return oggetti;
     }
 
     /**
-     * Verifica se un oggetto ha un'immagine
+     * Verifica se un oggetto ha un'immagine associata
      */
     public boolean hasImmagine(int oggettoId) {
         String sql = "SELECT image_url FROM " + TABLE_NAME + " WHERE id = ?";
         try (Connection conn = ConnessioneDB.getConnessione();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, oggettoId);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                String imageUrl = rs.getString("image_url");
-                return imageUrl != null && !imageUrl.isEmpty() && !imageUrl.equals("null");
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    String imageUrl = rs.getString("image_url");
+                    return imageUrl != null && !imageUrl.isEmpty() && !imageUrl.equals("null");
+                }
             }
         } catch (SQLException e) {
             System.err.println("Errore verifica immagine oggetto: " + oggettoId);
@@ -244,39 +237,34 @@ public class OggettoDAO {
     }
     
     /**
-     * Recupera l'ID di un oggetto esistente
+     * Recupera l'ID di un oggetto esistente con lo stesso nome e categoria
      */
     public static int recuperaIdOggettoEsistente(Oggetto oggettoDaCercare) {
         if (oggettoDaCercare == null || oggettoDaCercare.getNome() == null) {
             return -1;
         }
         
-        try (Connection connection = ConnessioneDB.getConnessione()) {
-            String query = "SELECT id FROM oggetto WHERE nome = ? AND categoria_id = ? LIMIT 1";
+        String query = "SELECT id FROM oggetto WHERE nome = ? AND categoria_id = ? LIMIT 1";
+        
+        try (Connection connection = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = connection.prepareStatement(query)) {
             
-            PreparedStatement stmt = connection.prepareStatement(query);
             stmt.setString(1, oggettoDaCercare.getNome());
-            
-            // ✅ CORREZIONE: Converti categoria in ID per la ricerca
             int categoriaId = convertiCategoriaInId(oggettoDaCercare.getCategoria());
             stmt.setInt(2, categoriaId);
             
-            ResultSet rs = stmt.executeQuery();
-            
-            if (rs.next()) {
-                return rs.getInt("id");
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next() ? rs.getInt("id") : -1;
             }
             
-            return -1;
-            
         } catch (SQLException e) {
-            System.err.println("❌ Errore nel recupero ID oggetto: " + e.getMessage());
+            System.err.println("Errore nel recupero ID oggetto: " + e.getMessage());
             return -1;
         }
     }
 
     /**
-     * Aggiorna un oggetto esistente
+     * Aggiorna un oggetto esistente nel database
      */
     public boolean aggiornaOggetto(Oggetto oggetto) throws SQLException {
         String sql = "UPDATE oggetto SET nome = ?, descrizione = ?, categoria_id = ?, image_url = ?, origine = ? WHERE id = ?";
@@ -287,7 +275,6 @@ public class OggettoDAO {
             stmt.setString(1, oggetto.getNome());
             stmt.setString(2, oggetto.getDescrizione());
             
-            // ✅ CORREZIONE: Converti categoria enum in ID numerico
             int categoriaId = convertiCategoriaInId(oggetto.getCategoria());
             stmt.setInt(3, categoriaId);
             
@@ -301,14 +288,12 @@ public class OggettoDAO {
             stmt.setString(5, oggetto.getOrigine().name());
             stmt.setInt(6, oggetto.getId());
             
-            int rowsAffected = stmt.executeUpdate();
-            System.out.println("✅ Oggetto aggiornato: " + rowsAffected + " righe modificate");
-            return rowsAffected > 0;
+            return stmt.executeUpdate() > 0;
         }
     }
 
     /**
-     * Elimina un oggetto
+     * Elimina un oggetto dal database
      */
     public boolean eliminaOggetto(int oggettoId) throws SQLException {
         String sql = "DELETE FROM " + TABLE_NAME + " WHERE id = ?";
@@ -321,7 +306,7 @@ public class OggettoDAO {
     }
 
     /**
-     * Cerca oggetti per nome
+     * Cerca oggetti per nome (ricerca case-insensitive)
      */
     public List<Oggetto> cercaOggettiPerNome(String nome) {
         List<Oggetto> oggetti = new ArrayList<>();
@@ -343,7 +328,31 @@ public class OggettoDAO {
     }
 
     /**
-     * Metodo di compatibilità - converte ID categoria in enum
+     * Cerca oggetti per categoria
+     */
+    public List<Oggetto> cercaOggettiPerCategoria(Categoria categoria) {
+        List<Oggetto> oggetti = new ArrayList<>();
+        String sql = "SELECT * FROM " + TABLE_NAME + " WHERE categoria_id = ?";
+        
+        try (Connection conn = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            int categoriaId = convertiCategoriaInId(categoria);
+            stmt.setInt(1, categoriaId);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    oggetti.add(mapResultSetToOggetto(rs));
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Errore ricerca oggetti per categoria: " + categoria);
+        }
+        return oggetti;
+    }
+
+    /**
+     * Converte ID categoria in enum Categoria
      */
     private Categoria fromIntCategoria(int id) {
         switch (id) {
@@ -357,7 +366,7 @@ public class OggettoDAO {
     }
 
     /**
-     * Converte l'enum Categoria in ID numerico per il database
+     * Converte enum Categoria in ID numerico per database
      */
     private static int convertiCategoriaInId(Categoria categoria) {
         switch (categoria) {
@@ -371,20 +380,85 @@ public class OggettoDAO {
     }
 
     /**
-     * Metodo di compatibilità - ottiene ID categoria da nome
+     * Aggiorna solo l'URL dell'immagine di un oggetto
      */
-    private int ottieniCategoriaIdDalNome(String nomeCategoria) {
-        String sql = "SELECT id FROM categoria WHERE LOWER(nome) = LOWER(?)";
+    public boolean aggiornaImmagineOggetto(int oggettoId, String imageUrl) throws SQLException {
+        String sql = "UPDATE " + TABLE_NAME + " SET image_url = ? WHERE id = ?";
+        
         try (Connection conn = ConnessioneDB.getConnessione();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, nomeCategoria);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("id");
+            
+            if (imageUrl == null || imageUrl.isEmpty()) {
+                stmt.setNull(1, Types.VARCHAR);
+            } else {
+                stmt.setString(1, imageUrl);
+            }
+            stmt.setInt(2, oggettoId);
+            
+            return stmt.executeUpdate() > 0;
+        }
+    }
+
+    /**
+     * Conta il numero totale di oggetti nel database
+     */
+    public int contaOggettiTotali() {
+        String sql = "SELECT COUNT(*) FROM " + TABLE_NAME;
+        
+        try (Connection conn = ConnessioneDB.getConnessione();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            return rs.next() ? rs.getInt(1) : 0;
+        } catch (SQLException e) {
+            System.err.println("Errore conteggio oggetti: " + e.getMessage());
+            return 0;
+        }
+    }
+    
+    
+    /**
+     * Aggiorna l'URL dell'immagine Cloudinary per un oggetto
+     */
+    public boolean aggiornaImmagineCloudinary(int oggettoId, String cloudinaryUrl) {
+        String sql = "UPDATE oggetto SET image_url = ? WHERE id = ?";
+        
+        try (Connection conn = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            if (cloudinaryUrl == null || cloudinaryUrl.isEmpty()) {
+                stmt.setNull(1, Types.VARCHAR);
+            } else {
+                stmt.setString(1, cloudinaryUrl);
+            }
+            stmt.setInt(2, oggettoId);
+            
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
+            
+        } catch (SQLException e) {
+            System.err.println("Errore nell'aggiornamento dell'immagine Cloudinary per oggetto " + oggettoId + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Recupera oggetti con immagini Cloudinary
+     */
+    public List<Oggetto> getOggettiConImmaginiCloudinary() {
+        List<Oggetto> oggetti = new ArrayList<>();
+        String sql = "SELECT * FROM oggetto WHERE image_url LIKE '%cloudinary%'";
+        
+        try (Connection conn = ConnessioneDB.getConnessione();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            while (rs.next()) {
+                oggetti.add(mapResultSetToOggetto(rs));
             }
         } catch (SQLException e) {
-            System.err.println("Errore durante il recupero dell'id categoria");
+            System.err.println("Errore nel recupero oggetti Cloudinary: " + e.getMessage());
         }
-        return -1;
+        return oggetti;
     }
 }

@@ -4,70 +4,65 @@ import application.Classe.Annuncio;
 import application.Enum.Categoria;
 import application.Enum.Tipologia;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * Gestisce il filtraggio degli annunci con sistema a trigger per estendibilità
+ */
 public class FilterManager {
     
-    // Interfaccia per i trigger
     public interface FilterTrigger {
         void beforeFilter(List<Annuncio> annunci);
         void afterFilter(List<Annuncio> annunciFiltrati);
     }
     
-    // Lista di trigger registrati
-    private static List<FilterTrigger> triggers = new java.util.ArrayList<>();
+    private static final List<FilterTrigger> triggers = new ArrayList<>();
     
-    // Registra un nuovo trigger
     public static void registraTrigger(FilterTrigger trigger) {
         triggers.add(trigger);
     }
     
-    // Rimuovi un trigger
     public static void rimuoviTrigger(FilterTrigger trigger) {
         triggers.remove(trigger);
     }
     
+    /**
+     * Applica filtri multipli agli annunci con supporto trigger
+     */
     public static List<Annuncio> applicaFiltri(List<Annuncio> annunci, 
                                               Categoria categoria, 
                                               Tipologia tipologia, 
                                               String queryRicerca, 
                                               String ordinamento) {
         
-        // Esegui trigger prima del filtraggio
         eseguiTriggerBefore(annunci);
         
         List<Annuncio> annunciFiltrati = annunci.stream()
                 .filter(filtroPerCategoria(categoria))
                 .filter(filtroPerTipologia(tipologia))
                 .filter(filtroPerRicerca(queryRicerca))
-                .sorted((a, b) -> ordinaAnnunci(a, b, ordinamento))
+                .sorted(creaComparatore(ordinamento))
                 .collect(Collectors.toList());
         
-        // Esegui trigger dopo il filtraggio
         eseguiTriggerAfter(annunciFiltrati);
         
         return annunciFiltrati;
     }
     
-    // Esegui tutti i trigger "before"
     private static void eseguiTriggerBefore(List<Annuncio> annunci) {
-        for (FilterTrigger trigger : triggers) {
-            trigger.beforeFilter(annunci);
-        }
+        triggers.forEach(trigger -> trigger.beforeFilter(annunci));
     }
     
-    // Esegui tutti i trigger "after"
     private static void eseguiTriggerAfter(List<Annuncio> annunciFiltrati) {
-        for (FilterTrigger trigger : triggers) {
-            trigger.afterFilter(annunciFiltrati);
-        }
+        triggers.forEach(trigger -> trigger.afterFilter(annunciFiltrati));
     }
     
     // ========== TRIGGER PREDEFINITI ==========
     
-    // 1. Trigger per il logging
     public static class LoggingTrigger implements FilterTrigger {
         @Override
         public void beforeFilter(List<Annuncio> annunci) {
@@ -81,13 +76,10 @@ public class FilterManager {
         }
     }
     
-    // 2. Trigger per validazione prezzi
     public static class ValidazionePrezzoTrigger implements FilterTrigger {
         @Override
         public void beforeFilter(List<Annuncio> annunci) {
-            // Rimuovi annunci con prezzi non validi
             annunci.removeIf(annuncio -> annuncio.getPrezzo() < 0);
-            System.out.println("[TRIGGER] Validazione prezzi completata");
         }
         
         @Override
@@ -96,7 +88,6 @@ public class FilterManager {
         }
     }
     
-    // 3. Trigger per statistiche
     public static class StatisticheTrigger implements FilterTrigger {
         @Override
         public void beforeFilter(List<Annuncio> annunci) {
@@ -118,11 +109,9 @@ public class FilterManager {
         }
     }
     
-    // 4. Trigger per evidenziare offerte speciali
     public static class OfferteSpecialiTrigger implements FilterTrigger {
         @Override
         public void beforeFilter(List<Annuncio> annunci) {
-            // Marca gli annunci in evidenza
             annunci.forEach(annuncio -> {
                 if (annuncio.getPrezzo() < 10) {
                     annuncio.setInEvidenza(true);
@@ -142,7 +131,7 @@ public class FilterManager {
         }
     }
     
-    // ========== METODI DI FILTRAGGIO (rimangono invariati) ==========
+    // ========== METODI DI FILTRAGGIO OTTIMIZZATI ==========
     
     private static Predicate<Annuncio> filtroPerCategoria(Categoria categoria) {
         return annuncio -> categoria == null || 
@@ -154,65 +143,118 @@ public class FilterManager {
     }
     
     private static Predicate<Annuncio> filtroPerRicerca(String queryRicerca) {
+        if (queryRicerca == null || queryRicerca.isBlank()) {
+            return annuncio -> true;
+        }
+        
+        final String searchLower = queryRicerca.toLowerCase();
         return annuncio -> {
-            if (queryRicerca == null || queryRicerca.isBlank()) {
-                return true;
+            boolean titoloMatch = annuncio.getTitolo() != null && 
+                                annuncio.getTitolo().toLowerCase().contains(searchLower);
+            
+            if (titoloMatch) return true;
+            
+            if (annuncio.getOggetto() != null) {
+                boolean descrizioneMatch = annuncio.getOggetto().getDescrizione() != null &&
+                                         annuncio.getOggetto().getDescrizione().toLowerCase().contains(searchLower);
+                boolean nomeMatch = annuncio.getOggetto().getNome() != null &&
+                                  annuncio.getOggetto().getNome().toLowerCase().contains(searchLower);
+                
+                return descrizioneMatch || nomeMatch;
             }
             
-            String searchLower = queryRicerca.toLowerCase();
-            
-            return (annuncio.getTitolo() != null && annuncio.getTitolo().toLowerCase().contains(searchLower)) ||
-                   (annuncio.getOggetto() != null && annuncio.getOggetto().getDescrizione() != null &&
-                    annuncio.getOggetto().getDescrizione().toLowerCase().contains(searchLower)) ||
-                   (annuncio.getOggetto() != null && annuncio.getOggetto().getNome() != null &&
-                    annuncio.getOggetto().getNome().toLowerCase().contains(searchLower));
+            return false;
         };
     }
     
-    private static int ordinaAnnunci(Annuncio a, Annuncio b, String ordinamento) {
+    private static Comparator<Annuncio> creaComparatore(String ordinamento) {
         if (ordinamento == null) {
             ordinamento = "recent";
         }
         
         switch (ordinamento) {
             case "price_asc": 
-                return Double.compare(a.getPrezzo(), b.getPrezzo());
+                return Comparator.comparingDouble(Annuncio::getPrezzo);
             case "price_desc": 
-                return Double.compare(b.getPrezzo(), a.getPrezzo());
+                return Comparator.comparingDouble(Annuncio::getPrezzo).reversed();
             case "recent":
             default: 
-                if (a.getDataPubblicazione() == null && b.getDataPubblicazione() == null) {
-                    return 0;
-                } else if (a.getDataPubblicazione() == null) {
-                    return 1;
-                } else if (b.getDataPubblicazione() == null) {
-                    return -1;
-                }
-                return b.getDataPubblicazione().compareTo(a.getDataPubblicazione());
+                return (a, b) -> {
+                    if (a.getDataPubblicazione() == null && b.getDataPubblicazione() == null) return 0;
+                    if (a.getDataPubblicazione() == null) return 1;
+                    if (b.getDataPubblicazione() == null) return -1;
+                    return b.getDataPubblicazione().compareTo(a.getDataPubblicazione());
+                };
         }
     }
     
-    public static int contaAnnunciFiltrati(List<Annuncio> annunci, 
+    /**
+     * Conta gli annunci che corrispondono ai filtri senza applicarli
+     */
+    public static long contaAnnunciFiltrati(List<Annuncio> annunci, 
                                           Categoria categoria, 
                                           Tipologia tipologia, 
                                           String queryRicerca) {
         
-        return (int) annunci.stream()
+        return annunci.stream()
                 .filter(filtroPerCategoria(categoria))
                 .filter(filtroPerTipologia(tipologia))
                 .filter(filtroPerRicerca(queryRicerca))
                 .count();
     }
     
-    // ========== INIZIALIZZAZIONE DEI TRIGGER ==========
+    /**
+     * Versione alternativa che restituisce int per compatibilità
+     */
+    public static int contaAnnunciFiltratiInt(List<Annuncio> annunci, 
+                                            Categoria categoria, 
+                                            Tipologia tipologia, 
+                                            String queryRicerca) {
+        
+        long countLong = contaAnnunciFiltrati(annunci, categoria, tipologia, queryRicerca);
+        
+        // Conversione sicura da long a int
+        if (countLong > Integer.MAX_VALUE) {
+            System.err.println("Warning: numero di annunci eccede Integer.MAX_VALUE");
+            return Integer.MAX_VALUE;
+        }
+        return (int) countLong;
+    }
     
+    /**
+     * Applica filtro rapido solo per testo (più veloce per ricerche semplici)
+     */
+    public static List<Annuncio> filtroRapidoTesto(List<Annuncio> annunci, String queryRicerca) {
+        if (queryRicerca == null || queryRicerca.isBlank()) {
+            return new ArrayList<>(annunci);
+        }
+        
+        final String searchLower = queryRicerca.toLowerCase();
+        return annunci.stream()
+                .filter(annuncio -> annuncio.getTitolo() != null && 
+                                  annuncio.getTitolo().toLowerCase().contains(searchLower))
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Filtraggio batch per multiple categorie
+     */
+    public static List<Annuncio> filtraPerCategorie(List<Annuncio> annunci, List<Categoria> categorie) {
+        if (categorie == null || categorie.isEmpty()) {
+            return new ArrayList<>(annunci);
+        }
+        
+        return annunci.stream()
+                .filter(annuncio -> annuncio.getOggetto() != null && 
+                                  categorie.contains(annuncio.getOggetto().getCategoria()))
+                .collect(Collectors.toList());
+    }
+    
+    // Inizializzazione trigger predefiniti
     static {
-        // Registra i trigger predefiniti all'avvio
         registraTrigger(new LoggingTrigger());
         registraTrigger(new ValidazionePrezzoTrigger());
         registraTrigger(new StatisticheTrigger());
         registraTrigger(new OfferteSpecialiTrigger());
-        
-        System.out.println("[TRIGGER] " + triggers.size() + " trigger registrati");
     }
 }

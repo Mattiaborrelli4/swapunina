@@ -3,6 +3,7 @@ package application.Classe;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class Conto {
@@ -11,12 +12,10 @@ public class Conto {
     private BigDecimal saldo;
     private final List<Movimento> movimenti;
 
-    // Enum per tipologia movimenti
     public enum TipoMovimento {
         ACCREDITO, ADDEBITO, ACQUISTO, RICARICA
     }
 
-    // Classe interna per rappresentare un movimento
     public static class Movimento {
         private final BigDecimal importo;
         private final LocalDateTime data;
@@ -65,6 +64,9 @@ public class Conto {
         return saldo;
     }
 
+    /**
+     * Accredita un importo positivo sul conto
+     */
     public void accredita(BigDecimal importo, String descrizione) {
         if (importo.compareTo(BigDecimal.ZERO) > 0) {
             saldo = saldo.add(importo);
@@ -72,6 +74,10 @@ public class Conto {
         }
     }
 
+    /**
+     * Addebita un importo positivo dal conto se il saldo è sufficiente
+     * @return true se l'operazione è riuscita, false altrimenti
+     */
     public boolean addebita(BigDecimal importo, String descrizione) {
         if (importo.compareTo(BigDecimal.ZERO) > 0 && saldo.compareTo(importo) >= 0) {
             saldo = saldo.subtract(importo);
@@ -81,7 +87,10 @@ public class Conto {
         return false;
     }
     
-    // Metodo specifico per acquisti
+    /**
+     * Effettua un acquisto specifico sottraendo l'importo dal saldo
+     * @return true se l'acquisto è riuscito, false se saldo insufficiente
+     */
     public boolean effettuaAcquisto(BigDecimal importo, String descrizione) {
         if (importo.compareTo(BigDecimal.ZERO) > 0 && saldo.compareTo(importo) >= 0) {
             saldo = saldo.subtract(importo);
@@ -91,7 +100,9 @@ public class Conto {
         return false;
     }
     
-    // Metodo specifico per ricariche
+    /**
+     * Ricarica il conto con un importo positivo
+     */
     public void ricarica(BigDecimal importo, String metodoPagamento) {
         if (importo.compareTo(BigDecimal.ZERO) > 0) {
             saldo = saldo.add(importo);
@@ -100,19 +111,25 @@ public class Conto {
         }
     }
 
-    // Metodo per ottenere la lista dei movimenti
+    /**
+     * Restituisce una lista immodificabile dei movimenti per prevenire modifiche esterne
+     */
     public List<Movimento> getMovimenti() {
-        return new ArrayList<>(movimenti);
+        return Collections.unmodifiableList(movimenti);
     }
 
-    // Metodo per filtrare i movimenti per tipo
+    /**
+     * Filtra i movimenti per tipo utilizzando stream
+     */
     public List<Movimento> getMovimentiPerTipo(TipoMovimento tipo) {
         return movimenti.stream()
                 .filter(m -> m.getTipo() == tipo)
                 .toList();
     }
     
-    // Verifica se il saldo è sufficiente per un acquisto
+    /**
+     * Verifica se il saldo è sufficiente per un dato importo
+     */
     public boolean saldoSufficiente(BigDecimal importo) {
         return saldo.compareTo(importo) >= 0;
     }

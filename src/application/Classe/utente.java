@@ -5,6 +5,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Rappresenta un utente del sistema con tutte le informazioni personali
+ * e le operazioni associate alla gestione del profilo e delle attività
+ */
 public class utente {
     private int id;
     private String matricola;
@@ -15,6 +19,7 @@ public class utente {
     private List<Annuncio> annunci = new ArrayList<>();
     private List<Offerta> offerte = new ArrayList<>();
     private Map<String, Object> properties = new HashMap<>();
+    private String fotoProfilo;
 
     public utente() {}
 
@@ -26,7 +31,107 @@ public class utente {
         this.password = password;
     }
 
-    // Getter e Setter
+    /**
+     * Verifica se l'utente ha dati validi per la registrazione
+     */
+    public boolean valido() {
+        return matricola != null && !matricola.isEmpty() &&
+               email != null && !email.isEmpty() &&
+               nome != null && !nome.isEmpty() &&
+               cognome != null && !cognome.isEmpty() &&
+               password != null && password.length() >= 8;
+    }
+
+    /**
+     * Verifica le credenziali di login
+     */
+    public boolean verificaCredenziali(String emailInput, String passwordInput) {
+        return this.email.equals(emailInput) && this.password.equals(passwordInput);
+    }
+
+    /**
+     * Aggiorna la password dell'utente
+     */
+    public void aggiornaPassword(String nuovaPassword) {
+        this.password = nuovaPassword;
+    }
+
+    /**
+     * Aggiunge una proprietà custom all'utente
+     */
+    public void setProperty(String key, Object value) {
+        properties.put(key, value);
+    }
+    
+    /**
+     * Recupera una proprietà custom dell'utente
+     */
+    public Object getProperty(String key) {
+        return properties.get(key);
+    }
+    
+    /**
+     * Recupera il titolo dell'annuncio dalla proprietà custom
+     */
+    public String getTitoloAnnuncio() {
+        return (String) properties.getOrDefault("titolo_annuncio", "Conversazione");
+    }
+
+    /**
+     * Restituisce il nome completo dell'utente
+     */
+    public String getNomeCompleto() {
+        return nome + " " + cognome;
+    }
+
+    /**
+     * Verifica se l'utente ha annunci pubblicati
+     */
+    public boolean hasAnnunci() {
+        return !annunci.isEmpty();
+    }
+
+    /**
+     * Verifica se l'utente ha effettuato offerte
+     */
+    public boolean hasOfferte() {
+        return !offerte.isEmpty();
+    }
+
+    /**
+     * Aggiunge un annuncio alla lista dell'utente
+     */
+    public void aggiungiAnnuncio(Annuncio annuncio) {
+        if (annuncio != null) {
+            annunci.add(annuncio);
+        }
+    }
+
+    /**
+     * Aggiunge un'offerta alla lista dell'utente
+     */
+    public void aggiungiOfferta(Offerta offerta) {
+        if (offerta != null) {
+            offerte.add(offerta);
+        }
+    }
+
+    /**
+     * Restituisce il numero di annunci pubblicati
+     */
+    public int getNumeroAnnunci() {
+        return annunci.size();
+    }
+
+    /**
+     * Restituisce il numero di offerte effettuate
+     */
+    public int getNumeroOfferte() {
+        return offerte.size();
+    }
+
+    // ========== GETTER E SETTER ==========
+
     public int getId() { 
         return id; 
     }
@@ -76,63 +181,38 @@ public class utente {
     }
 
     public List<Annuncio> getAnnunci() { 
-        return annunci; 
+        return new ArrayList<>(annunci); 
     }
     
     public void setAnnunci(List<Annuncio> annunci) { 
-        this.annunci = annunci; 
+        this.annunci = new ArrayList<>(annunci); 
     }
 
     public List<Offerta> getOfferte() { 
-        return offerte; 
+        return new ArrayList<>(offerte); 
     }
     
     public void setOfferte(List<Offerta> offerte) { 
-        this.offerte = offerte; 
+        this.offerte = new ArrayList<>(offerte); 
     }
 
     public Map<String, Object> getProperties() { 
-        return properties; 
+        return new HashMap<>(properties); 
     }
     
     public void setProperties(Map<String, Object> properties) { 
-        this.properties = properties; 
+        this.properties = new HashMap<>(properties); 
     }
 
-    public boolean valido() {
-        return matricola != null && !matricola.isEmpty() &&
-               email != null && !email.isEmpty() &&
-               nome != null && !nome.isEmpty() &&
-               cognome != null && !cognome.isEmpty() &&
-               password != null && password.length() >= 8;
-    }
-
-    public boolean verificaCredenziali(String emailInput, String passwordInput) {
-        return this.email.equals(emailInput) && this.password.equals(passwordInput);
-    }
-
-    public void aggiornaPassword(String nuovaPassword) {
-        this.password = nuovaPassword;
-    }
-
+    /**
+     * Metodi alias per compatibilità
+     */
     public List<Annuncio> getAnnunciPubblicati() {
-        return annunci;
+        return getAnnunci();
     }
 
     public List<Offerta> getOfferteEffettuate() {
-        return offerte;
-    }
-    
-    public void setProperty(String key, Object value) {
-        properties.put(key, value);
-    }
-    
-    public Object getProperty(String key) {
-        return properties.get(key);
-    }
-    
-    public String getTitoloAnnuncio() {
-        return (String) properties.getOrDefault("titolo_annuncio", "Conversazione");
+        return getOfferte();
     }
 
     @Override
@@ -143,9 +223,32 @@ public class utente {
                 ", email='" + email + '\'' +
                 ", nome='" + nome + '\'' +
                 ", cognome='" + cognome + '\'' +
-                ", password='" + password + '\'' +
                 ", annunci=" + annunci.size() +
                 ", offerte=" + offerte.size() +
                 '}';
+    }
+    
+    
+    // GETTER e SETTER per fotoProfilo
+    public String getFotoProfilo() {
+        return fotoProfilo;
+    }
+    
+    public void setFotoProfilo(String fotoProfilo) {
+        this.fotoProfilo = fotoProfilo;
+    }
+    
+    /**
+     * Verifica se l'utente ha una foto profilo
+     */
+    public boolean hasFotoProfilo() {
+        return fotoProfilo != null && !fotoProfilo.trim().isEmpty();
+    }
+    
+    /**
+     * Restituisce l'URL della foto profilo o null se non presente
+     */
+    public String getFotoProfiloSafe() {
+        return hasFotoProfilo() ? fotoProfilo : null;
     }
 }

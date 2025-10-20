@@ -197,6 +197,7 @@ public class MessaggioDAO {
                         ""
                     );
                     u.setId(rs.getInt("id"));
+                    u.setFotoProfilo(rs.getString("foto_profilo"));
                     utenti.add(u);
                 }
             }
@@ -224,5 +225,85 @@ public class MessaggioDAO {
             e.printStackTrace();
             return false;
         }
+    }
+
+    public List<Messaggio> getConversazionePerAnnuncio(int currentUserId, int interlocutoreId, int annuncioId) {
+        List<Messaggio> messaggi = new ArrayList<>();
+        
+        System.out.println("🔍 Ricerca messaggi per annuncio:");
+        System.out.println("   Utente corrente: " + currentUserId);
+        System.out.println("   Interlocutore: " + interlocutoreId);
+        System.out.println("   Annuncio ID: " + annuncioId);
+        
+        String sql = "SELECT * FROM " + TABLE_NAME + " WHERE " +
+                "((mittente_id = ? AND destinatario_id = ?) OR " +
+                "(mittente_id = ? AND destinatario_id = ?)) " +
+                "AND annuncio_id = ? " +
+                "ORDER BY data_invio ASC";
+
+        try (Connection conn = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, currentUserId);
+            stmt.setInt(2, interlocutoreId);
+            stmt.setInt(3, interlocutoreId);
+            stmt.setInt(4, currentUserId);
+            stmt.setInt(5, annuncioId);
+
+            System.out.println("📊 Esecuzione query: " + stmt.toString());
+            
+            ResultSet rs = stmt.executeQuery();
+            int count = 0;
+            
+            while (rs.next()) {
+                count++;
+                String testo = null;
+                
+                try {
+                    // Prima prova a leggere il testo encrypted
+                    byte[] encryptedData = rs.getBytes("testo_encrypted");
+                    if (encryptedData != null) {
+                        testo = new String(encryptedData, StandardCharsets.UTF_8);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Errore decodifica messaggio encrypted ID: " + rs.getInt("id"));
+                    e.printStackTrace();
+                }
+                
+                // Se non riesci a decodificare l'encrypted, usa il backup
+                if (testo == null || testo.isEmpty()) {
+                    try {
+                        testo = rs.getString("testo_plaintext_backup");
+                        if (testo == null) {
+                            testo = "[Messaggio non decodificabile]";
+                        }
+                    } catch (Exception ex) {
+                        System.err.println("Errore lettura backup messaggio ID: " + rs.getInt("id"));
+                        testo = "[Messaggio illeggibile]";
+                    }
+                }
+                
+                Messaggio m = new Messaggio(
+                    rs.getInt("id"),
+                    rs.getInt("mittente_id"),
+                    rs.getInt("destinatario_id"),
+                    testo,
+                    rs.getTimestamp("data_invio").toLocalDateTime(),
+                    rs.getObject("annuncio_id") != null ? rs.getInt("annuncio_id") : null
+                );
+                messaggi.add(m);
+                
+                System.out.println("   📨 Messaggio " + count + ": " + m.getTesto() + 
+                                 " (da: " + m.getMittenteId() + ")");
+            }
+            
+            System.out.println("✅ Trovati " + messaggi.size() + " messaggi per annuncio " + annuncioId);
+            
+        } catch (SQLException e) {
+            System.err.println("❌ Errore recupero conversazione per annuncio");
+            e.printStackTrace();
+        }
+
+        return messaggi;
     }
 }

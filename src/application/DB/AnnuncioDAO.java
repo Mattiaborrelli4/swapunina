@@ -1,5 +1,6 @@
 package application.DB;
 
+import application.servic;
 import application.Classe.Annuncio;
 import application.Classe.Oggetto;
 import application.Enum.Categoria;
@@ -18,7 +19,7 @@ public class AnnuncioDAO {
     private static final String CARATTERISTICHE_TABLE = "annuncio_caratteristica";
 
     // Inserisce un annuncio completo con oggetto associato
-    public int inserisciAnnuncioComplessivo(Annuncio annuncio, int venditoreId) throws SQLException {
+    public int inserisciAnnuncioComplessivo(Annuncio annuncio, int venditoreId) {
         annuncio.setVenditoreId(venditoreId);
 
         // Assicurati che l'oggetto abbia l'origine impostata
@@ -29,8 +30,13 @@ public class AnnuncioDAO {
         int oggettoId = OggettoDAO.salvaOggetto(annuncio.getOggetto());
 
         if (oggettoId != -1) {
-            int annuncioId = creaAnnuncioConValidazione(annuncio, oggettoId);
-            return annuncioId;
+            try {
+                int annuncioId = creaAnnuncioConValidazione(annuncio, oggettoId);
+                return annuncioId;
+            } catch (SQLException e) {
+                System.err.println("Errore nella creazione dell'annuncio: " + e.getMessage());
+                return -1;
+            }
         } else {
             return -1;
         }
@@ -97,8 +103,8 @@ public class AnnuncioDAO {
             stmt.setInt(8, annuncio.getVenditoreId());
             stmt.setTimestamp(9, Timestamp.valueOf(LocalDateTime.now()));
             
-            // Gestione immagine null
-            String imageUrl = annuncio.getImageUrlSafe();
+            // CORREZIONE: L'imageUrl deve essere impostato sull'oggetto, non sull'annuncio
+            String imageUrl = annuncio.getOggetto() != null ? annuncio.getOggetto().getImageUrl() : "";
             if (imageUrl == null || imageUrl.isEmpty()) {
                 stmt.setNull(10, Types.VARCHAR);
             } else {
@@ -147,7 +153,7 @@ public class AnnuncioDAO {
     }
 
     // Recupera un annuncio dal database tramite ID
-    public Annuncio getAnnuncioById(int id) throws SQLException {
+    public Annuncio getAnnuncioById(int id) {
         // ✅ QUERY CORRETTA - usa o.categoria_id invece di o.categoria
         String sql = "SELECT " +
                    "a.id AS annuncio_id, a.titolo, a.prezzo, a.in_evidenza, a.tipologia, " +
@@ -172,12 +178,14 @@ public class AnnuncioDAO {
                     return annuncio;
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("Errore nel recupero dell'annuncio con ID " + id + ": " + e.getMessage());
         }
         return null;
     }
 
     // Recupera le caratteristiche speciali di un annuncio
-    private List<String> getCaratteristiche(int annuncioId) throws SQLException {
+    private List<String> getCaratteristiche(int annuncioId) {
         List<String> caratteristiche = new ArrayList<>();
         String sql = "SELECT caratteristica FROM " + CARATTERISTICHE_TABLE + " WHERE annuncio_id = ?";
 
@@ -189,12 +197,14 @@ public class AnnuncioDAO {
                     caratteristiche.add(rs.getString("caratteristica"));
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("Errore nel recupero delle caratteristiche per annuncio " + annuncioId + ": " + e.getMessage());
         }
         return caratteristiche;
     }
 
     // Recupera gli annunci attivi
-    public List<Annuncio> getAnnunciAttivi() throws SQLException {
+    public List<Annuncio> getAnnunciAttivi() {
         List<Annuncio> annunci = new ArrayList<>();
         
         String sql = "SELECT a.id AS annuncio_id, a.titolo, u.nome AS nome_venditore " +
@@ -213,12 +223,14 @@ public class AnnuncioDAO {
                     annunci.add(annuncio);
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("Errore nel recupero degli annunci attivi: " + e.getMessage());
         }
         return annunci;
     }
 
     // Aggiorna lo stato di un annuncio
-    public boolean aggiornaStatoAnnuncio(int annuncioId, String nuovoStato) throws SQLException {
+    public boolean aggiornaStatoAnnuncio(int annuncioId, String nuovoStato) {
         String sql = "UPDATE " + TABLE_NAME + " SET stato = ? WHERE id = ?";
         
         try (Connection conn = ConnessioneDB.getConnessione();
@@ -232,22 +244,28 @@ public class AnnuncioDAO {
                 return true;
             }
             return false;
+        } catch (SQLException e) {
+            System.err.println("Errore nell'aggiornamento dello stato dell'annuncio " + annuncioId + ": " + e.getMessage());
+            return false;
         }
     }
 
     // Elimina un annuncio dal database
-    public boolean eliminaAnnuncio(int annuncioId) throws SQLException {
+    public boolean eliminaAnnuncio(int annuncioId) {
         String sql = "DELETE FROM " + TABLE_NAME + " WHERE id = ?";
 
         try (Connection conn = ConnessioneDB.getConnessione();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, annuncioId);
             return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Errore nell'eliminazione dell'annuncio " + annuncioId + ": " + e.getMessage());
+            return false;
         }
     }
     
     // Recupera l'ID utente tramite matricola
-    public int getIdUtenteByMatricola(String matricola) throws SQLException {
+    public int getIdUtenteByMatricola(String matricola) {
         String query = "SELECT id FROM utente WHERE matricola = ?";
 
         try (Connection conn = ConnessioneDB.getConnessione();
@@ -261,11 +279,14 @@ public class AnnuncioDAO {
                     return -1;
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("Errore nel recupero dell'ID utente per matricola " + matricola + ": " + e.getMessage());
+            return -1;
         }
     }
 
     // Verifica se l'annuncio ha un'immagine
-    public boolean hasImmagine(int annuncioId) throws SQLException {
+    public boolean hasImmagine(int annuncioId) {
         String sql = "SELECT image_url FROM " + TABLE_NAME + " WHERE id = ?";
         try (Connection conn = ConnessioneDB.getConnessione();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -276,79 +297,107 @@ public class AnnuncioDAO {
                     return imageUrl != null && !imageUrl.isEmpty() && !imageUrl.equals("null");
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("Errore nella verifica dell'immagine per annuncio " + annuncioId + ": " + e.getMessage());
         }
         return false;
     }
     
-    // Metodo helper per mappare ResultSet ad Annuncio
+    // CORREZIONE COMPLETA: Metodo helper per mappare ResultSet ad Annuncio
     private Annuncio mapResultSetToAnnuncio(ResultSet rs) throws SQLException {
-        // ✅ Il titolo ora viene SOLO dalla tabella annuncio
-        String titolo = rs.getString("titolo");
-        if (titolo == null || titolo.isEmpty()) {
-            titolo = "Senza titolo";
-        }
+        try {
+            // Recupera i dati base dell'annuncio
+            int idAnnuncio = rs.getInt("annuncio_id");
+            String titolo = rs.getString("titolo");
+            double prezzo = rs.getDouble("prezzo");
+            boolean inEvidenza = rs.getBoolean("in_evidenza");
+            String tipologiaStr = rs.getString("tipologia");
+            String modalitaConsegna = rs.getString("modalita_consegna");
+            String stato = rs.getString("stato");
+            int venditoreId = rs.getInt("venditore_id");
+            Timestamp dataPubblicazione = rs.getTimestamp("data_pubblicazione");
+            String imageUrl = rs.getString("image_url");
+            String descrizione = rs.getString("descrizione");
+            String nomeVenditore = rs.getString("nome_venditore");
 
-        // Converti le stringhe del DB negli enum corrispondenti
-        String tipologiaStr = rs.getString("tipologia");
-        Tipologia tipologia = Tipologia.valueOf(tipologiaStr);
-
-        // ✅ CORREZIONE: Recupera categoria_id e converti in enum Categoria
-        int categoriaId = rs.getInt("categoria_id");
-        Categoria categoria = fromIntCategoria(categoriaId);
-
-        String statoStr = rs.getString("stato");
-        StatoAnnuncio stato = StatoAnnuncio.parseStato(statoStr);
-
-        String origineStr = rs.getString("origine");
-        OrigineOggetto origine = OrigineOggetto.parseOrigine(origineStr);
-
-        // Gestione immagine
-        String imageUrl = rs.getString("image_url");
-        File immagineFile = null;
-        
-        if (imageUrl != null && !imageUrl.isEmpty() && !imageUrl.equals("null")) {
+            // Mappa la tipologia
+            Tipologia tipologia;
             try {
-                immagineFile = new File("C:/Users/matti/Desktop/project/" + imageUrl);
-                if (!immagineFile.exists()) {
-                    immagineFile = null;
-                }
-            } catch (Exception e) {
-                immagineFile = null;
+                tipologia = Tipologia.valueOf(tipologiaStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                System.err.println("Tipologia non riconosciuta: " + tipologiaStr + ", usando DEFAULT");
+                tipologia = Tipologia.VENDITA;
             }
+            
+            // Recupera i dati dell'oggetto
+            int idOggetto = rs.getInt("oggetto_id");
+            String nomeOggetto = rs.getString("oggetto_nome");
+            String descrizioneOggetto = rs.getString("oggetto_descrizione");
+            int categoriaId = rs.getInt("categoria_id");
+            String oggettoImageUrl = rs.getString("oggetto_image_url");
+            String origineStr = rs.getString("origine");
+            
+            // Mappa la categoria da ID a enum
+            Categoria categoria = fromIntCategoria(categoriaId);
+            
+            // Mappa l'origine dell'oggetto
+            OrigineOggetto origineOggetto;
+            try {
+                origineOggetto = OrigineOggetto.valueOf(origineStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                System.err.println("Origine oggetto non riconosciuta: " + origineStr + ", usando USATO");
+                origineOggetto = OrigineOggetto.USATO;
+            }
+            
+            // CORREZIONE: Crea l'oggetto con il costruttore corretto (File invece di List<String>)
+            File immagineFile = null; // Se hai bisogno di un File, dovrai crearlo dall'URL
+            Oggetto oggetto = new Oggetto(
+                idOggetto,
+                nomeOggetto,
+                descrizioneOggetto,
+                categoria,
+                oggettoImageUrl, // usa imageUrl invece di lista immagini
+                immagineFile,    // File invece di List<String>
+                origineOggetto
+            );
+            
+            // CORREZIONE: Crea l'annuncio con il costruttore corretto
+            Annuncio annuncio = new Annuncio(
+                oggetto,
+                prezzo,
+                tipologia,
+                modalitaConsegna,
+                venditoreId
+            );
+            
+            // CORREZIONE: Imposta gli attributi usando i metodi corretti
+            annuncio.setId(idAnnuncio); // usa setId invece di setIdAnnuncio
+            annuncio.setTitolo(titolo);
+            annuncio.setInEvidenza(inEvidenza);
+            annuncio.setStato(stato);
+            
+            // CORREZIONE: Converti Timestamp in LocalDateTime
+            if (dataPubblicazione != null) {
+                annuncio.setDataPubblicazione(dataPubblicazione.toLocalDateTime());
+            }
+            
+            annuncio.setDescrizione(descrizione);
+            annuncio.setNomeVenditore(nomeVenditore); // usa setNomeVenditore invece di setNomeUtente
+            
+            // CORREZIONE: Non chiamare setImageUrl() perché non esiste nella classe Annuncio
+            // L'immagine è gestita attraverso l'oggetto
+            
+            // Carica le caratteristiche speciali
+            List<String> caratteristiche = getCaratteristiche(idAnnuncio);
+            annuncio.setCaratteristicheSpeciali(caratteristiche);
+            
+            return annuncio;
+            
+        } catch (SQLException e) {
+            System.err.println("Errore critico nel mapping ResultSet to Annuncio: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
         }
-
-        // Crea l'oggetto con il nome corretto
-        Oggetto oggetto = new Oggetto(
-            rs.getInt("oggetto_id"),
-            rs.getString("oggetto_nome"), // ✅ Usa il nome dell'oggetto dal database
-            rs.getString("oggetto_descrizione"),
-            categoria, 
-            rs.getString("oggetto_image_url"),
-            immagineFile,
-            origine
-        );
-
-        // Crea l'annuncio
-        Annuncio annuncio = new Annuncio(
-            oggetto,
-            rs.getDouble("prezzo"),
-            tipologia,
-            rs.getString("modalita_consegna"),
-            rs.getInt("venditore_id")
-        );
-        
-        // ✅ IMPOSTA IL TITOLO RECUPERATO DAL DATABASE
-        annuncio.setTitolo(titolo);
-        annuncio.setDescrizione(rs.getString("descrizione"));
-        annuncio.setNomeVenditore(rs.getString("nome_venditore"));
-
-        annuncio.setId(rs.getInt("annuncio_id"));
-        annuncio.setInEvidenza(rs.getBoolean("in_evidenza"));
-        annuncio.setStato(stato.name());
-        annuncio.setDataPubblicazione(rs.getTimestamp("data_pubblicazione").toLocalDateTime());
-        annuncio.getCaratteristicheSpeciali().addAll(getCaratteristiche(annuncio.getId()));
-
-        return annuncio;
     }
 
     // Metodo per convertire ID categoria in enum (per compatibilità)
@@ -364,7 +413,7 @@ public class AnnuncioDAO {
     }
     
     // Aggiorna un annuncio completo
-    public boolean aggiornaAnnuncioCompleto(Annuncio annuncio) throws SQLException {
+    public boolean aggiornaAnnuncioCompleto(Annuncio annuncio) {
         try (Connection conn = ConnessioneDB.getConnessione()) {
             conn.setAutoCommit(false);
             try {
@@ -390,7 +439,8 @@ public class AnnuncioDAO {
                     stmt.setString(5, annuncio.getModalitaConsegna());
                     stmt.setString(6, annuncio.getStato());
                     
-                    String imageUrl = annuncio.getImageUrlSafe();
+                    // CORREZIONE: Usa l'imageUrl dell'oggetto, non dell'annuncio
+                    String imageUrl = annuncio.getOggetto() != null ? annuncio.getOggetto().getImageUrl() : "";
                     if (imageUrl == null || imageUrl.isEmpty()) {
                         stmt.setNull(7, Types.VARCHAR);
                     } else {
@@ -411,10 +461,14 @@ public class AnnuncioDAO {
                 }
             } catch (SQLException e) {
                 conn.rollback();
-                throw e;
+                System.err.println("Errore nell'aggiornamento dell'annuncio: " + e.getMessage());
+                return false;
             } finally {
                 conn.setAutoCommit(true);
             }
+        } catch (SQLException e) {
+            System.err.println("Errore di connessione durante l'aggiornamento dell'annuncio: " + e.getMessage());
+            return false;
         }
         return false;
     }
@@ -432,7 +486,7 @@ public class AnnuncioDAO {
     }
 
     // Metodo per ottenere annunci per venditore
-    public List<Annuncio> getAnnunciPerVenditore(int venditoreId) throws SQLException {
+    public List<Annuncio> getAnnunciPerVenditore(int venditoreId) {
         List<Annuncio> annunci = new ArrayList<>();
         
         String sql = "SELECT a.id AS annuncio_id, a.titolo " +
@@ -452,12 +506,14 @@ public class AnnuncioDAO {
                     }
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("Errore nel recupero degli annunci per venditore " + venditoreId + ": " + e.getMessage());
         }
         return annunci;
     }
 
     // Metodo per cercare annunci per titolo
-    public List<Annuncio> cercaAnnunciPerTitolo(String query) throws SQLException {
+    public List<Annuncio> cercaAnnunciPerTitolo(String query) {
         List<Annuncio> annunci = new ArrayList<>();
         
         String sql = "SELECT a.id AS annuncio_id, a.titolo " +
@@ -477,12 +533,14 @@ public class AnnuncioDAO {
                     }
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("Errore nella ricerca annunci per titolo '" + query + "': " + e.getMessage());
         }
         return annunci;
     }
 
     // Metodo per cercare annunci per categoria
-    public List<Annuncio> cercaAnnunciPerCategoria(String categoria) throws SQLException {
+    public List<Annuncio> cercaAnnunciPerCategoria(String categoria) {
         List<Annuncio> annunci = new ArrayList<>();
         
         String sql = "SELECT a.id AS annuncio_id, a.titolo " +
@@ -506,12 +564,14 @@ public class AnnuncioDAO {
                     }
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("Errore nella ricerca annunci per categoria '" + categoria + "': " + e.getMessage());
         }
         return annunci;
     }
 
     // Metodo per ottenere annunci in evidenza
-    public List<Annuncio> getAnnunciInEvidenza() throws SQLException {
+    public List<Annuncio> getAnnunciInEvidenza() {
         List<Annuncio> annunci = new ArrayList<>();
         
         String sql = "SELECT a.id AS annuncio_id, a.titolo " +
@@ -529,6 +589,8 @@ public class AnnuncioDAO {
                     annunci.add(annuncio);
                 }
             }
+        } catch (SQLException e) {
+            System.err.println("Errore nel recupero degli annunci in evidenza: " + e.getMessage());
         }
         return annunci;
     }
@@ -543,5 +605,88 @@ public class AnnuncioDAO {
             case "ALTRO": return 5;
             default: return 5;
         }
+    }
+    
+    
+    /**
+     * Aggiorna l'immagine di un annuncio su Cloudinary
+     */
+    public boolean aggiornaImmagineAnnuncio(int annuncioId, String cloudinaryUrl) {
+        try (Connection conn = ConnessioneDB.getConnessione()) {
+            // Prima recupera l'oggetto_id dall'annuncio
+            String sqlSelect = "SELECT oggetto_id FROM annuncio WHERE id = ?";
+            int oggettoId = -1;
+            
+            try (PreparedStatement stmt = conn.prepareStatement(sqlSelect)) {
+                stmt.setInt(1, annuncioId);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        oggettoId = rs.getInt("oggetto_id");
+                    }
+                }
+            }
+            
+            if (oggettoId == -1) {
+                return false;
+            }
+            
+            // Aggiorna l'URL dell'immagine nell'oggetto
+            String sqlUpdate = "UPDATE oggetto SET image_url = ? WHERE id = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sqlUpdate)) {
+                stmt.setString(1, cloudinaryUrl);
+                stmt.setInt(2, oggettoId);
+                
+                int rowsAffected = stmt.executeUpdate();
+                return rowsAffected > 0;
+            }
+            
+        } catch (SQLException e) {
+            System.err.println("Errore nell'aggiornamento dell'immagine per annuncio " + annuncioId + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Elimina l'immagine di un annuncio (sia da Cloudinary che dal database)
+     */
+    public boolean eliminaImmagineAnnuncio(int annuncioId) {
+        try {
+            // Prima recupera l'URL dell'immagine
+            String imageUrl = getImageUrlAnnuncio(annuncioId);
+            
+            if (imageUrl != null && imageUrl.contains("cloudinary")) {
+                // Elimina da Cloudinary
+                servic cloudinaryService = new servic();
+                cloudinaryService.eliminaImmagine(imageUrl);
+            }
+            
+            // Aggiorna il database impostando image_url a NULL
+            return aggiornaImmagineAnnuncio(annuncioId, null);
+            
+        } catch (Exception e) {
+            System.err.println("Errore nell'eliminazione dell'immagine per annuncio " + annuncioId + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Recupera l'URL dell'immagine di un annuncio
+     */
+    private String getImageUrlAnnuncio(int annuncioId) {
+        String sql = "SELECT o.image_url FROM annuncio a JOIN oggetto o ON a.oggetto_id = o.id WHERE a.id = ?";
+        
+        try (Connection conn = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, annuncioId);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("image_url");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Errore nel recupero dell'URL immagine per annuncio " + annuncioId + ": " + e.getMessage());
+        }
+        return null;
     }
 }
