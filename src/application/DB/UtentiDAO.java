@@ -305,6 +305,12 @@ public class UtentiDAO {
      * @param utente L'utente da registrare
      * @return true se la registrazione è avvenuta con successo, false altrimenti
      */
+    /**
+     * Registra un nuovo utente nel sistema
+     * 
+     * @param utente L'utente da registrare
+     * @return true se la registrazione è avvenuta con successo, false altrimenti
+     */
     public boolean registraUtente(utente utente) {
         if (utente == null || !isUtenteValido(utente)) {
             LOGGER.log(Level.WARNING, "🚫 Tentativo di registrare un utente non valido");
@@ -322,9 +328,10 @@ public class UtentiDAO {
             return false;
         }
         
+        // QUERY CORRETTA - rimossa la colonna data_registrazione
         String sql = """
-            INSERT INTO utente (matricola, nome, cognome, email, password, data_registrazione) 
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO utente (matricola, nome, cognome, email, password) 
+            VALUES (?, ?, ?, ?, ?)
             """;
         
         try (Connection connessione = ConnessioneDB.getConnessione();
