@@ -1,0 +1,254 @@
+/* 
+ * Modern TableView CSS Styles - JavaFX Compatible
+ * Optimized for performance and visual appeal
+ */
+
+.table-view {
+    -fx-background-color: transparent;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 0;
+}
+
+/* VirtualFlow container - performance optimization */
+.table-view .virtual-flow {
+    -fx-background-color: transparent;
+}
+
+/* Table rows - optimized for performance */
+.table-row-cell {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #f1f5f9;
+    -fx-border-width: 0 0 1 0;
+    -fx-pref-height: 48px; /* Fixed height for better performance */
+    -fx-padding: 0;
+}
+
+/* Alternate row coloring for better readability */
+.table-row-cell:even {
+    -fx-background-color: #fafafa;
+}
+
+.table-row-cell:odd {
+    -fx-background-color: #ffffff;
+}
+
+/* Hover state - subtle effect */
+.table-row-cell:hover {
+    -fx-background-color: #f8fafc;
+    -fx-cursor: hand;
+}
+
+/* Selected row - modern highlight */
+.table-row-cell:selected {
+    -fx-background-color: #3b82f6;
+    -fx-text-fill: white;
+}
+
+/* Focused cell - minimal indicator */
+.table-row-cell:filled:selected:focused {
+    -fx-background-color: #2563eb;
+    -fx-text-fill: white;
+}
+
+/* Empty rows */
+.table-row-cell:empty {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+/* Table cells - optimized rendering */
+.table-cell {
+    -fx-padding: 12 16;
+    -fx-border-color: transparent;
+    -fx-alignment: center-left;
+    -fx-text-fill: #334155;
+    -fx-font-family: "Segoe UI", "System", sans-serif;
+    -fx-font-size: 14;
+    -fx-wrap-text: true; /* Prevent text clipping */
+}
+
+/* Selected cell text color */
+.table-row-cell:selected .table-cell {
+    -fx-text-fill: white;
+}
+
+/* Column headers - modern design */
+.column-header {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 0;
+    -fx-pref-height: 44px; /* Fixed header height */
+}
+
+.column-header-background {
+    -fx-background-color: #f8fafc;
+}
+
+.column-header .label {
+    -fx-text-fill: #475569;
+    -fx-font-weight: bold;
+    -fx-font-size: 13;
+    -fx-alignment: center-left;
+    -fx-padding: 0 16 0 16;
+    -fx-font-family: "Segoe UI", "System", sans-serif;
+}
+
+/* Column header hover effect */
+.column-header:hover {
+    -fx-background-color: #f1f5f9;
+}
+
+/* Resize handle styling - JavaFX specific */
+.column-header > .sort-order-dots-container {
+    -fx-background-color: #cbd5e1;
+}
+
+.column-header:hover > .sort-order-dots-container {
+    -fx-background-color: #94a3b8;
+}
+
+/* Table scroll bars - modern styling */
+.table-view .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 12;
+}
+
+.table-view .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-pref-height: 12;
+}
+
+.table-view .scroll-bar .thumb {
+    -fx-background-color: #cbd5e1;
+    -fx-background-radius: 6;
+}
+
+.table-view .scroll-bar .thumb:hover {
+    -fx-background-color: #94a3b8;
+}
+
+.table-view .scroll-bar .track {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.table-view .scroll-bar .increment-button,
+.table-view .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 2;
+}
+
+.table-view .scroll-bar .increment-arrow,
+.table-view .scroll-bar .decrement-arrow {
+    -fx-background-color: #64748b;
+}
+
+/* Corner region */
+.table-view .corner {
+    -fx-background-color: transparent;
+}
+
+/* No content placeholder */
+.table-view .placeholder .label {
+    -fx-text-fill: #64748b;
+    -fx-font-style: italic;
+    -fx-alignment: center;
+    -fx-padding: 40;
+}
+
+/* Focus ring - subtle */
+.table-view:focused {
+    -fx-border-color: #3b82f6;
+    -fx-border-width: 1.5;
+}
+
+/* Compact mode for dense data */
+.table-view.compact .table-row-cell {
+    -fx-pref-height: 36px;
+}
+
+.table-view.compact .table-cell {
+    -fx-padding: 8 12;
+    -fx-font-size: 13;
+}
+
+/* Zebra striping alternative */
+.table-view.zebra .table-row-cell:even {
+    -fx-background-color: #f8fafc;
+}
+
+.table-view.zebra .table-row-cell:odd {
+    -fx-background-color: #ffffff;
+}
+
+/* Dark mode support */
+.table-view.dark {
+    -fx-border-color: #374151;
+}
+
+.table-view.dark .table-row-cell {
+    -fx-background-color: #1f2937;
+    -fx-border-color: #374151;
+}
+
+.table-view.dark .table-row-cell:even {
+    -fx-background-color: #111827;
+}
+
+.table-view.dark .table-row-cell:odd {
+    -fx-background-color: #1f2937;
+}
+
+.table-view.dark .table-row-cell:hover {
+    -fx-background-color: #374151;
+}
+
+.table-view.dark .table-row-cell:selected {
+    -fx-background-color: #3b82f6;
+}
+
+.table-view.dark .table-cell {
+    -fx-text-fill: #f9fafb;
+}
+
+.table-view.dark .column-header {
+    -fx-background-color: #111827;
+    -fx-border-color: #374151;
+}
+
+.table-view.dark .column-header .label {
+    -fx-text-fill: #d1d5db;
+}
+
+/* Sort arrow styling - JavaFX specific */
+.table-view .arrow {
+    -fx-background-color: #64748b;
+}
+
+.table-view .column-header.sort-descending .arrow,
+.table-view .column-header.sort-ascending .arrow {
+    -fx-background-color: #3b82f6;
+}
+
+/* Performance optimizations for virtual flow */
+.table-view .clipped-container {
+    -fx-background-color: transparent;
+}
+
+/* Custom styles for specific column types */
+.table-view .number-column .table-cell {
+    -fx-alignment: center-right;
+}
+
+.table-view .center-column .table-cell {
+    -fx-alignment: center;
+}
+
+.table-view .action-column .table-cell {
+    -fx-alignment: center;
+    -fx-padding: 4 8;
+}

@@ -1,0 +1,105 @@
+
+/* Sfondo generale del dialogo */
+.dialog-pane {
+    -fx-background-color: linear-gradient(to bottom right, #1e2a47, #344d7a);
+    -fx-background-radius: 30;
+    -fx-padding: 50 50 50 50;
+    -fx-font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Etichette (Label) più visibili */
+.label, .etichetta-campo {
+    -fx-text-fill: #e5e9f0; /* bianco azzurro */
+    -fx-font-weight: bold;
+    -fx-font-size: 14;
+    -fx-effect: dropshadow(one-pass-box, rgba(0,0,0,0.5), 2, 0, 0, 1);
+}
+
+/* Campo testo (TextField e ComboBox editor) */
+.text-field, .combo-box {
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-background-radius: 15;
+    -fx-text-fill: #f0f4ff;
+    -fx-font-size: 14;
+    -fx-padding: 10 15 10 15;
+    -fx-border-radius: 15;
+    -fx-border-color: transparent;
+    -fx-prompt-text-fill: #a0aec0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 2, 0, 0, 1);
+}
+
+/* Focus campo testo */
+.text-field:focused, .combo-box:focused {
+    -fx-border-color: #5a67d8;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, #5a67d8, 6, 0.5, 0, 0);
+}
+
+/* TextArea descrizione */
+.text-area {
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-background-radius: 15;
+    -fx-text-fill: #f0f4ff;
+    -fx-font-size: 14;
+    -fx-padding: 10 15 10 15;
+    -fx-border-radius: 15;
+    -fx-border-color: transparent;
+    -fx-prompt-text-fill: #a0aec0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 2, 0, 0, 1);
+}
+
+/* Focus TextArea */
+.text-area:focused {
+    -fx-border-color: #5a67d8;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, #5a67d8, 6, 0.5, 0, 0);
+}
+
+/* Bottoni */
+.button {
+    -fx-background-color: linear-gradient(to right, #6a11cb, #2575fc);
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-font-size: 15;
+    -fx-background-radius: 15;
+    -fx-padding: 12 30 12 30;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.6), 10, 0.4, 0, 4);
+    -fx-border-color: transparent;
+    -fx-transition: all 0.3s ease;
+}
+
+.header-label {
+    -fx-text-fill: #f0f4ff;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 15 0;
+    -fx-effect: dropshadow(one-pass-box, rgba(0,0,0,0.6), 2, 0, 0, 1);
+}
+
+
+.button:hover {
+    -fx-background-color: linear-gradient(to right, #5f0da4, #1d5edb);
+    -fx-scale-x: 1.05;
+    -fx-scale-y: 1.05;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.8), 15, 0.6, 0, 6);
+}
+
+.venduto-badge {
+    -fx-background-color: #e74c3c;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 5px 10px;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 5, 0, 0, 2);
+}
+
+.product-card[data-stato="VENDUTO"] {
+    -fx-opacity: 0.8;
+    -fx-background-color: #f8f9fa;
+}
+
+.product-card[data-stato="VENDUTO"] .product-image {
+    -fx-opacity: 0.6;
+}

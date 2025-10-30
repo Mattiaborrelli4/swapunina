@@ -1,0 +1,115 @@
+/* Sfondo sfumato */
+StackPane {
+    -fx-background-color: linear-gradient(to bottom right, #0d1117, #1a1f2b);
+    -fx-alignment: center;
+}
+
+.contenitore-modulo {
+    -fx-background-color: linear-gradient(to bottom right, #131a2b, #1a233a);
+    -fx-background-radius: 30;
+    -fx-padding: 50 50 50 50; /* padding aumentato */
+    -fx-alignment: center;
+    -fx-max-width: 600;  /* più largo */
+    -fx-max-height: 780;  /* leggermente più alto */
+}
+
+
+/* Titolo */
+.titolo {
+    -fx-fill: white;
+    -fx-font-family: "Segoe UI";
+    -fx-font-weight: bold;
+    -fx-font-size: 28;
+    -fx-text-alignment: center;
+}
+
+/* Etichette */
+.etichetta-campo {
+    -fx-text-fill: #cccccc;
+    -fx-font-weight: bold;
+    -fx-font-size: 13;
+}
+
+/* Testo errore */
+.etichetta-errore {
+    -fx-text-fill: red; /* Cambiato da grigio chiaro a rosso */
+    -fx-font-size: 13;
+    -fx-font-weight: bold;
+}
+
+
+/* Campi di testo */
+.campo-testo {
+    -fx-background-radius: 15;
+    -fx-padding: 10 15 10 15;
+    -fx-pref-width: 260;
+    -fx-background-color: rgba(255, 255, 255, 0.07);
+    -fx-text-fill: white;
+    -fx-font-size: 14;
+    -fx-border-radius: 15;
+    -fx-border-color: transparent;
+    -fx-prompt-text-fill: #888;
+}
+
+/* Stile errore (solo bordo rosso) */
+.campo-errore {
+    -fx-border-color: red; /* Bordo rosso */
+    -fx-border-width: 2;
+}
+
+/* Stile successo (bordo blu) */
+.campo-successo {
+    -fx-border-color: #5a67d8;
+    -fx-border-width: 2;
+}
+
+.campo-testo:focused {
+    -fx-border-color: #5a67d8;
+    -fx-border-width: 2;
+}
+
+/* Bottone login */
+.bottone-registrati {
+    -fx-background-color: linear-gradient(to right, #6a11cb, #2575fc);
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-font-size: 15;
+    -fx-background-radius: 15;
+    -fx-padding: 12 30 12 30;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.4), 10, 0.3, 0, 4);
+}
+
+.bottone-registrati:hover {
+    -fx-background-color: linear-gradient(to right, #5f0da4, #1d5edb);
+    -fx-scale-x: 1.02;
+    -fx-scale-y: 1.02;
+}
+
+/* Link "Registrati" */
+.collegamento-login {
+    -fx-text-fill: #9bb4ff;
+    -fx-font-size: 13;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.collegamento-login:hover {
+    -fx-underline: true;
+    -fx-text-fill: #c2d2ff;
+}
+
+
+
+.product-card {
+    -fx-background-color: white;
+    -fx-background-radius: 16px;
+    -fx-border-color: #192a54;  /* Changed to blue */
+    -fx-border-radius: 16px;
+    -fx-border-width: 1px;      /* Slightly thicker border for emphasis */
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 4, 0, 0, 2);
+    -fx-padding: 0;
+    -fx-spacing: 0;
+    -fx-pref-width: 320px;
+    -fx-max-width: 320px;
+}
