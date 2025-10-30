@@ -30,7 +30,7 @@ Nel repository è incluso il file `setup_libraries.bat`. Questo script:
 1. Apri il prompt dei comandi nella cartella principale del progetto
 2. Esegui il comando:
 
-```bat
+
 setup_libraries.bat
 Lo script scaricherà ed estrarrà automaticamente tutte le librerie nella cartella librerie.
 
