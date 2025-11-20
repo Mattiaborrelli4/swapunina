@@ -68,169 +68,13 @@ public class UtentiDAO {
     // ========== COSTRUTTORE ==========
     
     /**
-     * Costruttore - inizializza il database e verifica la struttura
+     * Costruttore - inizializza i servizi
      */
     public UtentiDAO() {
         this.cloudinaryService = new CloudinaryService();
-        inizializzaDatabase();
+        // inizializzaDatabase(); // DISABILITATO: schema DB gestito esternamente via migrazioni
     }
 
-    // ========== INIZIALIZZAZIONE DATABASE ==========
-    
-    /**
-     * Inizializza il database e verifica/crea la tabella utente
-     * Gestisce anche l'aggiornamento dello schema se necessario
-     */
-    private void inizializzaDatabase() {
-        String sqlVerificaTabella = 
-            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'utente')";
-        
-        try (Connection connessione = ConnessioneDB.getConnessione();
-             PreparedStatement statement = connessione.prepareStatement(sqlVerificaTabella);
-             ResultSet risultato = statement.executeQuery()) {
-            
-            if (risultato.next() && !risultato.getBoolean(1)) {
-                creaTabellaUtente(connessione);
-                LOGGER.log(Level.INFO, "✅ Tabella utente creata con successo");
-            } else {
-                LOGGER.log(Level.FINE, "🔍 Tabella utente già esistente - verifica struttura");
-                verificaEAggiornaStrutturaTabella(connessione);
-            }
-            
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "❌ Errore critico nell'inizializzazione del database", e);
-        }
-    }
-    
-    /**
-     * Verifica e aggiorna la struttura della tabella se necessario
-     * Aggiunge colonne mancanti senza perdere dati esistenti
-     */
-    private void verificaEAggiornaStrutturaTabella(Connection connessione) {
-        try {
-            // Verifica se la colonna 'attivo' esiste
-            if (!colonnaEsiste(connessione, COLONNA_ATTIVO)) {
-                aggiungiColonnaAttivo(connessione);
-            }
-            
-            // Verifica se la colonna 'ultimo_accesso' esiste
-            if (!colonnaEsiste(connessione, "ultimo_accesso")) {
-                aggiungiColonnaUltimoAccesso(connessione);
-            }
-            
-            // Verifica se la colonna 'foto_profilo' esiste
-            if (!colonnaEsiste(connessione, "foto_profilo")) {
-                aggiungiColonnaFotoProfilo(connessione);
-            }
-            
-            LOGGER.log(Level.INFO, "✅ Struttura tabella utente verificata e aggiornata");
-            
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "❌ Errore nell'aggiornamento della struttura della tabella", e);
-        }
-    }
-    
-    /**
-     * Verifica se una colonna specifica esiste nella tabella utente
-     */
-    private boolean colonnaEsiste(Connection connessione, String nomeColonna) throws SQLException {
-        String sql = """
-            SELECT EXISTS (
-                SELECT FROM information_schema.columns 
-                WHERE table_name = 'utente' AND column_name = ?
-            )
-            """;
-        
-        try (PreparedStatement statement = connessione.prepareStatement(sql)) {
-            statement.setString(1, nomeColonna);
-            try (ResultSet risultato = statement.executeQuery()) {
-                return risultato.next() && risultato.getBoolean(1);
-            }
-        }
-    }
-    
-    /**
-     * Aggiunge la colonna 'attivo' alla tabella utente
-     */
-    private void aggiungiColonnaAttivo(Connection connessione) throws SQLException {
-        String sql = "ALTER TABLE utente ADD COLUMN attivo BOOLEAN DEFAULT TRUE";
-        try (PreparedStatement statement = connessione.prepareStatement(sql)) {
-            statement.executeUpdate();
-            LOGGER.log(Level.INFO, "✅ Colonna 'attivo' aggiunta alla tabella utente");
-        }
-    }
-    
-    /**
-     * Aggiunge la colonna 'ultimo_accesso' alla tabella utente
-     */
-    private void aggiungiColonnaUltimoAccesso(Connection connessione) throws SQLException {
-        String sql = "ALTER TABLE utente ADD COLUMN ultimo_accesso TIMESTAMP";
-        try (PreparedStatement statement = connessione.prepareStatement(sql)) {
-            statement.executeUpdate();
-            LOGGER.log(Level.INFO, "✅ Colonna 'ultimo_accesso' aggiunta alla tabella utente");
-        }
-    }
-    
-    /**
-     * Aggiunge la colonna 'foto_profilo' alla tabella utente
-     */
-    private void aggiungiColonnaFotoProfilo(Connection connessione) throws SQLException {
-        String sql = "ALTER TABLE utente ADD COLUMN foto_profilo VARCHAR(500)";
-        try (PreparedStatement statement = connessione.prepareStatement(sql)) {
-            statement.executeUpdate();
-            LOGGER.log(Level.INFO, "✅ Colonna 'foto_profilo' aggiunta alla tabella utente");
-        }
-    }
-    
-    /**
-     * Crea la tabella utente con tutti i campi necessari
-     */
-    private void creaTabellaUtente(Connection connessione) {
-        String sqlCreaTabella = """
-            CREATE TABLE utente (
-                id SERIAL PRIMARY KEY,
-                matricola VARCHAR(20) UNIQUE NOT NULL,
-                nome VARCHAR(100) NOT NULL,
-                cognome VARCHAR(100) NOT NULL,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                foto_profilo VARCHAR(500),
-                data_registrazione TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                ultimo_accesso TIMESTAMP,
-                attivo BOOLEAN DEFAULT TRUE
-            )
-            """;
-        
-        try (PreparedStatement statement = connessione.prepareStatement(sqlCreaTabella)) {
-            statement.executeUpdate();
-            creaIndici(connessione);
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "❌ Errore nella creazione della tabella utente", e);
-        }
-    }
-    
-    /**
-     * Crea indici per ottimizzare le query frequenti
-     */
-    private void creaIndici(Connection connessione) {
-        String[] indici = {
-            "CREATE INDEX idx_utente_email ON utente(email)",
-            "CREATE INDEX idx_utente_matricola ON utente(matricola)",
-            "CREATE INDEX idx_utente_nome_cognome ON utente(nome, cognome)",
-            "CREATE INDEX idx_utente_attivo ON utente(attivo)"
-        };
-        
-        for (String sqlIndice : indici) {
-            try (PreparedStatement statement = connessione.prepareStatement(sqlIndice)) {
-                statement.executeUpdate();
-            } catch (SQLException e) {
-                LOGGER.log(Level.WARNING, "⚠️ Errore nella creazione dell'indice: " + sqlIndice, e);
-            }
-        }
-        
-        LOGGER.log(Level.INFO, "✅ Indici creati con successo");
-    }
-    
     // ========== METODI PRINCIPALI CRUD ==========
     
     /**
@@ -305,12 +149,6 @@ public class UtentiDAO {
      * @param utente L'utente da registrare
      * @return true se la registrazione è avvenuta con successo, false altrimenti
      */
-    /**
-     * Registra un nuovo utente nel sistema
-     * 
-     * @param utente L'utente da registrare
-     * @return true se la registrazione è avvenuta con successo, false altrimenti
-     */
     public boolean registraUtente(utente utente) {
         if (utente == null || !isUtenteValido(utente)) {
             LOGGER.log(Level.WARNING, "🚫 Tentativo di registrare un utente non valido");
@@ -328,7 +166,6 @@ public class UtentiDAO {
             return false;
         }
         
-        // QUERY CORRETTA - rimossa la colonna data_registrazione
         String sql = """
             INSERT INTO utente (matricola, nome, cognome, email, password) 
             VALUES (?, ?, ?, ?, ?)
@@ -891,7 +728,7 @@ public class UtentiDAO {
         // Se la foto profilo è condivisa con altri utenti, genera un avatar univoco
         if (fotoProfilo != null && !fotoProfilo.startsWith("data:image/svg+xml") && 
             !isFotoProfiloUnivoca(fotoProfilo, email)) {
-            LOGGER.log(Level.WARNING, "🔄 Foto profilo condivisa rilevata per: {0}, generando avatar univoco", email);
+            LOGGER.log(Level.WARNING, "Foto profilo condivisa rilevata per: {0}, generando avatar univoco", email);
             return generaAvatarUnivoco(email);
         }
         
@@ -899,7 +736,7 @@ public class UtentiDAO {
     }
     
     /**
-     * Verifica se una foto profilo è già utilizzata da altri utenti
+     * Verifica se una foto profilo è già utilizzata da altri utentes
      */
     public boolean isFotoProfiloUnivoca(String percorsoFoto, String emailUtenteCorrente) {
         if (percorsoFoto == null || percorsoFoto.isEmpty()) {
@@ -920,7 +757,7 @@ public class UtentiDAO {
                 }
             }
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "❌ Errore nel verificare univocità foto profilo", e);
+            LOGGER.log(Level.SEVERE, "Errore nel verificare univocità foto profilo", e);
         }
         
         return true;
@@ -952,7 +789,7 @@ public class UtentiDAO {
                     !fotoProfilo.startsWith("cloudinary") &&
                     !fotoProfilo.startsWith("data:image")) {
                     
-                    LOGGER.log(Level.INFO, "🔄 Migrazione foto per: {0}", email);
+                    LOGGER.log(Level.INFO, "Migrazione foto per: {0}", email);
                     boolean success = aggiornaFotoProfilo(email, fotoProfilo);
                     
                     if (success) {
@@ -963,11 +800,11 @@ public class UtentiDAO {
                 }
             }
             
-            LOGGER.log(Level.INFO, "✅ Migrazione completata: {0} successi, {1} errori", 
+            LOGGER.log(Level.INFO, "Migrazione completata: {0} successi, {1} errori", 
                        new Object[]{migrateCount, errorCount});
             
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "❌ Errore nella migrazione foto profilo", e);
+            LOGGER.log(Level.SEVERE, "Errore nella migrazione foto profilo", e);
         }
     }
     
@@ -1009,7 +846,7 @@ public class UtentiDAO {
              PreparedStatement statement = connessione.prepareStatement(sql);
              ResultSet risultato = statement.executeQuery()) {
             
-            System.out.println("🎨 TEST AVATAR UNIVOCI PER TUTTI GLI UTENTI:");
+            System.out.println("TEST AVATAR UNIVOCI PER TUTTI GLI UTENTI:");
             System.out.println("=============================================");
             
             while (risultato.next()) {
@@ -1026,7 +863,7 @@ public class UtentiDAO {
             System.out.println("=============================================");
             
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "❌ Errore nel test avatar", e);
+            LOGGER.log(Level.SEVERE, "Errore nel test avatar", e);
         }
     }
     
@@ -1049,12 +886,12 @@ public class UtentiDAO {
      */
     private boolean isPasswordValida(String nuovaPassword, String vecchiaPassword) {
         if (nuovaPassword.length() < LUNGHEZZA_MINIMA_PASSWORD) {
-            LOGGER.log(Level.WARNING, "🔒 Password troppo corta: {0} caratteri", nuovaPassword.length());
+            LOGGER.log(Level.WARNING, "Password troppo corta: {0} caratteri", nuovaPassword.length());
             return false;
         }
         
         if (nuovaPassword.equals(vecchiaPassword)) {
-            LOGGER.log(Level.WARNING, "🔒 La nuova password è uguale alla vecchia");
+            LOGGER.log(Level.WARNING, "La nuova password è uguale alla vecchia");
             return false;
         }
         
@@ -1111,7 +948,7 @@ public class UtentiDAO {
             CACHE_ID_TO_NOME.clear();
             CACHE_ID_TO_EMAIL.clear();
             CACHE_EMAIL_EXISTE.clear();
-            LOGGER.log(Level.INFO, "🧹 Cache pulita per prevenire memory leak");
+            LOGGER.log(Level.INFO, "Cache pulita per prevenire memory leak");
         }
     }
     
@@ -1152,7 +989,7 @@ public class UtentiDAO {
         CACHE_ID_TO_EMAIL.clear();
         CACHE_EMAIL_EXISTE.clear();
         resettaStatisticheCache();
-        LOGGER.log(Level.INFO, "🧹 Cache completamente pulita");
+        LOGGER.log(Level.INFO, "Cache completamente pulita");
     }
     
     /**
@@ -1175,7 +1012,7 @@ public class UtentiDAO {
      */
     public boolean aggiornaFotoProfilo(String email, String percorsoFoto) {
         if (email == null || email.trim().isEmpty()) {
-            LOGGER.log(Level.WARNING, "🚫 Email non valida per aggiornamento foto profilo");
+            LOGGER.log(Level.WARNING, "Email non valida per aggiornamento foto profilo");
             return false;
         }
         
@@ -1193,11 +1030,11 @@ public class UtentiDAO {
                     
                     if (cloudinaryUrl != null) {
                         percorsoFinale = cloudinaryUrl;
-                        LOGGER.log(Level.INFO, "✅ Immagine caricata su Cloudinary per: {0}", email);
+                        LOGGER.log(Level.INFO, "Immagine caricata su Cloudinary per: {0}", email);
                     }
                 }
             } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "⚠️ Fallback a percorso locale per: {0}, errore: {1}", 
+                LOGGER.log(Level.WARNING, "Fallback a percorso locale per: {0}, errore: {1}", 
                            new Object[]{email, e.getMessage()});
             }
         }
@@ -1219,14 +1056,14 @@ public class UtentiDAO {
             boolean successo = righeAggiornate > 0;
             
             if (successo) {
-                LOGGER.log(Level.INFO, "✅ Foto profilo aggiornata per: {0}", email);
+                LOGGER.log(Level.INFO, "Foto profilo aggiornata per: {0}", email);
                 invalidaCacheUtente(email);
             }
             
             return successo;
             
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "❌ Errore nell'aggiornamento foto profilo per: " + email, e);
+            LOGGER.log(Level.SEVERE, "Errore nell'aggiornamento foto profilo per: " + email, e);
             return false;
         }
     }
