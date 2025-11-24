@@ -522,72 +522,87 @@ public class CarrelloManager {
      * Effettua il checkout degli articoli selezionati
      * Gestisce il trasferimento dei fondi e l'aggiornamento dello stato degli annunci
      */
-    public boolean checkoutSelezionati() {
-        int utenteId = getCurrentUserId();
-        if (utenteId <= 0) {
-            mostraAlertErrore("Errore", "Devi effettuare il login per completare l'acquisto");
-            return false;
-        }
+    /**
+ * Effettua il checkout degli articoli selezionati
+ * Gestisce il trasferimento dei fondi, genera codici di sicurezza e aggiorna lo stato degli annunci
+ */
+public boolean checkoutSelezionati() {
+    int utenteId = getCurrentUserId();
+    if (utenteId <= 0) {
+        mostraAlertErrore("Errore", "Devi effettuare il login per completare l'acquisto");
+        return false;
+    }
+    
+    List<CarrelloItem> selezionati = getCarrelloItemsSelezionati();
+    if (selezionati.isEmpty()) {
+        mostraAlertErrore("Errore", "Seleziona gli articoli da acquistare");
+        return false;
+    }
+    
+    double totaleSelezionati = getTotaleSelezionati();
+    if (totaleSelezionati <= 0) {
+        mostraAlertErrore("Errore", "Il totale degli articoli selezionati non è valido");
+        return false;
+    }
+    
+    BigDecimal importoTotale = BigDecimal.valueOf(totaleSelezionati);
+    if (!contoDAO.verificaSaldoSufficiente(utenteId, importoTotale)) {
+        mostraAlertErrore("Saldo Insufficiente", 
+            "Saldo insufficiente per completare l'acquisto.\n" +
+            "Totale selezionato: €" + String.format("%.2f", totaleSelezionati) + "\n" +
+            "Il tuo saldo: €" + String.format("%.2f", getSaldoUtente()) + "\n" +
+            "Carica soldi per procedere.");
+        return false;
+    }
+    
+    try {
+        boolean successoCompleto = true;
+        List<String> articoliProcessati = new ArrayList<>();
+        List<String> articoliNonProcessati = new ArrayList<>();
         
-        List<CarrelloItem> selezionati = getCarrelloItemsSelezionati();
-        if (selezionati.isEmpty()) {
-            mostraAlertErrore("Errore", "Seleziona gli articoli da acquistare");
-            return false;
-        }
+        // Importa CodiceDAO per generare i codici
+        application.DB.CodiceDAO codiceDAO = new application.DB.CodiceDAO();
         
-        double totaleSelezionati = getTotaleSelezionati();
-        if (totaleSelezionati <= 0) {
-            mostraAlertErrore("Errore", "Il totale degli articoli selezionati non è valido");
-            return false;
-        }
-        
-        BigDecimal importoTotale = BigDecimal.valueOf(totaleSelezionati);
-        if (!contoDAO.verificaSaldoSufficiente(utenteId, importoTotale)) {
-            mostraAlertErrore("Saldo Insufficiente", 
-                "Saldo insufficiente per completare l'acquisto.\n" +
-                "Totale selezionato: €" + String.format("%.2f", totaleSelezionati) + "\n" +
-                "Il tuo saldo: €" + String.format("%.2f", getSaldoUtente()) + "\n" +
-                "Carica soldi per procedere.");
-            return false;
-        }
-        
-        try {
-            boolean successoCompleto = true;
-            List<String> articoliProcessati = new ArrayList<>();
-            List<String> articoliNonProcessati = new ArrayList<>();
+        for (CarrelloItem item : selezionati) {
+            Annuncio annuncio = item.getAnnuncio();
             
-            for (CarrelloItem item : selezionati) {
-                Annuncio annuncio = item.getAnnuncio();
+            if (annuncio.getVenditoreId() <= 0) {
+                articoliNonProcessati.add(annuncio.getTitolo() + " (venditore non valido)");
+                successoCompleto = false;
+                continue;
+            }
+            
+            BigDecimal importoArticolo = BigDecimal.valueOf(annuncio.getPrezzo() * item.getQuantita());
+            String descrizione = "Acquisto: " + annuncio.getTitolo() + " (x" + item.getQuantita() + ")";
+            
+            // Trasferisci fondi dall'acquirente al venditore
+            boolean successTrasferimento = contoDAO.trasferisciFondi(
+                utenteId, 
+                annuncio.getVenditoreId(), 
+                importoArticolo, 
+                descrizione
+            );
+            
+            if (successTrasferimento) {
+                // MODIFICA: Genera il codice di sicurezza invece di marcare come VENDUTO
+                String codiceGenerato = codiceDAO.generaCodiceConferma(utenteId, annuncio.getId());
                 
-                if (annuncio.getVenditoreId() <= 0) {
-                    articoliNonProcessati.add(annuncio.getTitolo() + " (venditore non valido)");
-                    successoCompleto = false;
-                    continue;
-                }
-                
-                BigDecimal importoArticolo = BigDecimal.valueOf(annuncio.getPrezzo() * item.getQuantita());
-                String descrizione = "Acquisto: " + annuncio.getTitolo() + " (x" + item.getQuantita() + ")";
-                
-                // Trasferisci fondi dall'acquirente al venditore
-                boolean successTrasferimento = contoDAO.trasferisciFondi(
-                    utenteId, 
-                    annuncio.getVenditoreId(), 
-                    importoArticolo, 
-                    descrizione
-                );
-                
-                if (successTrasferimento) {
-                    // Aggiorna lo stato dell'annuncio a "VENDUTO"
+                if (codiceGenerato != null) {
+                    // Aggiorna lo stato dell'annuncio a "IN_CONSEGNA" o mantieni "ATTIVO" 
+                    // ma con un flag che indica che è stato acquistato
                     try {
                         AnnuncioDAO annuncioDAO = new AnnuncioDAO();
-                        boolean successAggiornamento = annuncioDAO.aggiornaStatoAnnuncio(annuncio.getId(), "VENDUTO");
+                        // MODIFICA: Non cambiamo lo stato a VENDUTO, rimane ATTIVO fino alla verifica codice
+                        // boolean successAggiornamento = annuncioDAO.aggiornaStatoAnnuncio(annuncio.getId(), "IN_CONSEGNA");
                         
+                        // Invece di cambiare stato, aggiungiamo una relazione di acquisto
+                        boolean successAggiornamento = true;                        
                         if (successAggiornamento) {
-                            articoliProcessati.add(annuncio.getTitolo());
+                            articoliProcessati.add(annuncio.getTitolo() + " - Codice: " + codiceGenerato);
                             // Rimuovi l'articolo processato dal carrello
                             rimuoviArticoloSelezionato(annuncio.getId());
                         } else {
-                            articoliNonProcessati.add(annuncio.getTitolo() + " (errore aggiornamento stato)");
+                            articoliNonProcessati.add(annuncio.getTitolo() + " (errore registrazione acquisto)");
                             successoCompleto = false;
                         }
                     } catch (Exception e) {
@@ -595,40 +610,47 @@ public class CarrelloManager {
                         successoCompleto = false;
                     }
                 } else {
-                    articoliNonProcessati.add(annuncio.getTitolo() + " (errore trasferimento)");
+                    articoliNonProcessati.add(annuncio.getTitolo() + " (errore generazione codice)");
                     successoCompleto = false;
                 }
-            }
-            
-            if (successoCompleto || !articoliProcessati.isEmpty()) {
-                String messaggio = "Acquisto completato con successo!\n" +
-                    "Totale speso: €" + String.format("%.2f", totaleSelezionati) + "\n" +
-                    "Nuovo saldo: €" + String.format("%.2f", getSaldoUtente());
-                
-                if (!articoliProcessati.isEmpty()) {
-                    messaggio += "\n\nArticoli acquistati:\n• " + String.join("\n• ", articoliProcessati);
-                }
-                
-                if (!articoliNonProcessati.isEmpty()) {
-                    messaggio += "\n\nArticoli non processati:\n• " + String.join("\n• ", articoliNonProcessati);
-                }
-                
-                mostraAlert("Checkout Completato", messaggio);
-                return successoCompleto;
             } else {
-                mostraAlertErrore("Errore Checkout", 
-                    "Nessun articolo è stato processato correttamente:\n" +
-                    String.join("\n", articoliNonProcessati) + "\n\n" +
-                    "Controlla il saldo e riprova.");
-                return false;
+                articoliNonProcessati.add(annuncio.getTitolo() + " (errore trasferimento)");
+                successoCompleto = false;
+            }
+        }
+        
+        if (successoCompleto || !articoliProcessati.isEmpty()) {
+            String messaggio = "Acquisto completato con successo!\n" +
+                "Totale speso: €" + String.format("%.2f", totaleSelezionati) + "\n" +
+                "Nuovo saldo: €" + String.format("%.2f", getSaldoUtente());
+            
+            if (!articoliProcessati.isEmpty()) {
+                messaggio += "\n\nArticoli acquistati:\n• " + String.join("\n• ", articoliProcessati);
+                messaggio += "\n\n📦 I codici di sicurezza sono disponibili nella sezione 'Il Mio Account' -> 'Codici di Sicurezza'";
+                messaggio += "\n🔒 Mostra il codice al venditore quando ritiri il prodotto";
+                messaggio += "\n⏰ I codici sono validi per 2 settimane";
             }
             
-        } catch (Exception e) {
-            mostraAlertErrore("Errore", "Si è verificato un errore durante il checkout: " + e.getMessage());
-            e.printStackTrace();
+            if (!articoliNonProcessati.isEmpty()) {
+                messaggio += "\n\nArticoli non processati:\n• " + String.join("\n• ", articoliNonProcessati);
+            }
+            
+            mostraAlert("Checkout Completato", messaggio);
+            return successoCompleto;
+        } else {
+            mostraAlertErrore("Errore Checkout", 
+                "Nessun articolo è stato processato correttamente:\n" +
+                String.join("\n", articoliNonProcessati) + "\n\n" +
+                "Controlla il saldo e riprova.");
             return false;
         }
+        
+    } catch (Exception e) {
+        mostraAlertErrore("Errore", "Si è verificato un errore durante il checkout: " + e.getMessage());
+        e.printStackTrace();
+        return false;
     }
+}
     
     /**
      * Effettua il checkout di tutti gli articoli nel carrello
