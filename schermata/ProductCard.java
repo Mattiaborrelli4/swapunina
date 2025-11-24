@@ -22,8 +22,13 @@ import application.DB.MessaggioDAO;
 import application.DB.RecensioneDAO;
 import application.DB.SessionManager;
 import application.DB.UserDAO;
+import application.DB.CodiceDAO;
+import application.DB.ConnessioneDB;
 
 import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -52,6 +57,7 @@ public class ProductCard extends VBox {
     private final Button detailsButton = new Button("Dettagli");
     private final Button actionButton = new Button();
     private final Label vendutoBadge = new Label("VENDUTO");
+    private final Label acquistatoBadge = new Label("ACQUISTATO - IN ATTESA RITIRO");
     
     // Callback per azioni utente
     private Consumer<Annuncio> onDetailsAction;
@@ -78,7 +84,7 @@ public class ProductCard extends VBox {
         applyStyles();
         setupTooltips();
         
-        checkStatoVenduto();
+        checkStatoAnnuncio();
     }
 
     /**
@@ -96,6 +102,18 @@ public class ProductCard extends VBox {
         setPadding(new Insets(CARD_PADDING));
         setAlignment(Pos.TOP_CENTER);
         getStyleClass().add("product-card");
+        setStyle("-fx-background-color: white; -fx-border-color: #ddd; -fx-border-radius: 8; -fx-background-radius: 8;");
+    }
+
+    /**
+     * Verifica e gestisce lo stato dell'annuncio
+     */
+    private void checkStatoAnnuncio() {
+        if ("VENDUTO".equalsIgnoreCase(annuncio.getStato())) {
+            mostraStatoVenduto();
+        } else if (isAcquistatoMaNonRitirato()) {
+            mostraStatoAcquistato();
+        }
     }
 
     /**
@@ -106,10 +124,10 @@ public class ProductCard extends VBox {
         loadProductImage();
         setupImageProperties();
         setupBadgeAndContact();
-        setupVendutoBadge();
+        setupStatoBadges();
         
         HBox badgeRow = createBadgeRow();
-        imageContainer.getChildren().addAll(productImage, badgeRow, vendutoBadge);
+        imageContainer.getChildren().addAll(productImage, badgeRow);
         getChildren().add(imageContainer);
     }
 
@@ -139,6 +157,14 @@ public class ProductCard extends VBox {
     private void setupBadgeAndContact() {
         setupBadge();
         setupContactButton();
+    }
+
+    /**
+     * Configura i badge di stato
+     */
+    private void setupStatoBadges() {
+        setupVendutoBadge();
+        setupAcquistatoBadge();
     }
 
     /**
@@ -204,6 +230,24 @@ public class ProductCard extends VBox {
     }
 
     /**
+     * Configura il badge "ACQUISTATO"
+     */
+    private void setupAcquistatoBadge() {
+        acquistatoBadge.getStyleClass().add("acquistato-badge");
+        acquistatoBadge.setStyle(
+            "-fx-background-color: #3498db; " +
+            "-fx-text-fill: white; " +
+            "-fx-font-weight: bold; " +
+            "-fx-padding: 5px 10px; " +
+            "-fx-border-radius: 10; " +
+            "-fx-background-radius: 10;"
+        );
+        acquistatoBadge.setVisible(false);
+        StackPane.setAlignment(acquistatoBadge, Pos.TOP_CENTER);
+        StackPane.setMargin(acquistatoBadge, new Insets(10));
+    }
+
+    /**
      * Crea la riga contenente badge e pulsante contatto
      */
     private HBox createBadgeRow() {
@@ -215,15 +259,6 @@ public class ProductCard extends VBox {
     }
 
     /**
-     * Verifica e gestisce lo stato "venduto" dell'annuncio
-     */
-    private void checkStatoVenduto() {
-        if ("VENDUTO".equalsIgnoreCase(annuncio.getStato())) {
-            mostraStatoVenduto();
-        }
-    }
-
-    /**
      * Mostra lo stato venduto disabilitando i pulsanti e mostrando il badge
      */
     private void mostraStatoVenduto() {
@@ -231,6 +266,28 @@ public class ProductCard extends VBox {
         disableActionButtons();
         setupVendutoButton();
         applyVendutoStyle();
+        
+        // Aggiungi badge al container
+        StackPane imageContainer = (StackPane) getChildren().get(0);
+        if (!imageContainer.getChildren().contains(vendutoBadge)) {
+            imageContainer.getChildren().add(vendutoBadge);
+        }
+    }
+
+    /**
+     * Mostra lo stato acquistato disabilitando i pulsanti e mostrando il badge
+     */
+    private void mostraStatoAcquistato() {
+        acquistatoBadge.setVisible(true);
+        disableActionButtons();
+        setupAcquistatoButton();
+        applyAcquistatoStyle();
+        
+        // Aggiungi badge al container
+        StackPane imageContainer = (StackPane) getChildren().get(0);
+        if (!imageContainer.getChildren().contains(acquistatoBadge)) {
+            imageContainer.getChildren().add(acquistatoBadge);
+        }
     }
 
     /**
@@ -253,20 +310,58 @@ public class ProductCard extends VBox {
     }
 
     /**
+     * Configura il pulsante principale per stato acquistato
+     */
+    private void setupAcquistatoButton() {
+        actionButton.setText("📦 In Attesa di Ritiro");
+        actionButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white;");
+        Tooltip.install(actionButton, new Tooltip("Questo articolo è stato acquistato e attende il ritiro"));
+        Tooltip.install(acquistatoBadge, new Tooltip("Questo articolo è stato acquistato e attende il ritiro"));
+    }
+
+    /**
      * Applica lo stile per annuncio venduto
      */
     private void applyVendutoStyle() {
         setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #ddd; -fx-border-radius: 8; -fx-background-radius: 8; -fx-opacity: 0.8;");
     }
 
+    /**
+     * Applica lo stile per annuncio acquistato
+     */
+    private void applyAcquistatoStyle() {
+        setStyle("-fx-background-color: #f0f8ff; -fx-border-color: #3498db; -fx-border-radius: 8; -fx-background-radius: 8; -fx-opacity: 0.9;");
+    }
+
+    /**
+     * Verifica se l'annuncio è stato acquistato ma non ancora ritirato
+     */
+    private boolean isAcquistatoMaNonRitirato() {
+        try {
+            String sql = "SELECT COUNT(*) FROM codice_conferma WHERE annuncio_id = ? AND data_creazione > CURRENT_TIMESTAMP - INTERVAL '14 days'";
+            
+            try (Connection conn = ConnessioneDB.getConnessione();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+                
+                stmt.setInt(1, annuncio.getId());
+                ResultSet rs = stmt.executeQuery();
+                
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Errore nel verificare lo stato acquisto per annuncio " + annuncio.getId() + ": " + e.getMessage());
+        }
+        return false;
+    }
+
     private void loadProductImage() {
         try {
             Oggetto oggetto = annuncio.getOggetto();
             if (oggetto != null && oggetto.hasCloudinaryImage()) {
-                // Usa Cloudinary
                 loadImageFromCloudinary(oggetto);
             } else if (oggetto != null && oggetto.getImageUrl() != null && !oggetto.getImageUrl().isEmpty()) {
-                // Fallback: vecchio sistema
                 loadImageFromUrl(oggetto.getImageUrl());
             } else {
                 loadDefaultImage();
@@ -285,16 +380,15 @@ public class ProductCard extends VBox {
             String imageUrl = oggetto.getImageUrlOptimized();
             Image image = new Image(imageUrl, IMAGE_WIDTH, IMAGE_HEIGHT, true, true, true);
             
-            // Gestisce il caricamento asincrono
             image.progressProperty().addListener((obs, oldProgress, newProgress) -> {
                 if (newProgress.doubleValue() == 1.0) {
-                    System.out.println("✅ Immagine Cloudinary caricata: " + oggetto.getImageUrlOptimized());
+                    System.out.println("Immagine Cloudinary caricata: " + oggetto.getImageUrlOptimized());
                 }
             });
             
             image.errorProperty().addListener((obs, oldVal, newVal) -> {
                 if (newVal) {
-                    System.err.println("❌ Errore nel caricamento dell'immagine Cloudinary");
+                    System.err.println("Errore nel caricamento dell'immagine Cloudinary");
                     loadDefaultImage();
                 }
             });
@@ -310,14 +404,12 @@ public class ProductCard extends VBox {
     /**
      * Carica l'immagine dall'URL (vecchio sistema)
      */
-    
     private void loadImageFromUrl(String imageUrl) {
         try {
             if (imageUrl.startsWith("file:")) {
                 Image image = new Image(imageUrl, IMAGE_WIDTH, IMAGE_HEIGHT, true, true, true);
                 productImage.setImage(image);
             } else if (imageUrl.startsWith("/")) {
-                // URL relativo - cerca nelle risorse
                 InputStream imageStream = getClass().getResourceAsStream(imageUrl);
                 if (imageStream != null) {
                     Image image = new Image(imageStream, IMAGE_WIDTH, IMAGE_HEIGHT, true, true);
@@ -326,7 +418,6 @@ public class ProductCard extends VBox {
                     loadDefaultImage();
                 }
             } else {
-                // URL assoluto
                 Image image = new Image(imageUrl, IMAGE_WIDTH, IMAGE_HEIGHT, true, true, true);
                 productImage.setImage(image);
             }
@@ -335,7 +426,6 @@ public class ProductCard extends VBox {
             loadDefaultImage();
         }
     }
-
 
     /**
      * Carica l'immagine di default
@@ -497,8 +587,8 @@ public class ProductCard extends VBox {
      * Configura i pulsanti di azione
      */
     private void setupActionButtons(VBox content) {
-        // Solo se l'annuncio non è venduto
-        if (!"VENDUTO".equalsIgnoreCase(annuncio.getStato())) {
+        // Solo se l'annuncio non è venduto o acquistato
+        if (!"VENDUTO".equalsIgnoreCase(annuncio.getStato()) && !isAcquistatoMaNonRitirato()) {
             setupMainActionButton();
         }
         
@@ -583,7 +673,7 @@ public class ProductCard extends VBox {
     }
 
     /**
-     * Crea il container dei pulsanti azione
+     * Crea el container dei pulsanti azione
      */
     private HBox createActionButtons() {
         HBox actions = new HBox(10, detailsButton, actionButton);
@@ -654,7 +744,7 @@ public class ProductCard extends VBox {
      */
     private void setupActionHandler() {
         actionButton.setOnAction(e -> {
-            if ("VENDUTO".equalsIgnoreCase(annuncio.getStato())) {
+            if ("VENDUTO".equalsIgnoreCase(annuncio.getStato()) || isAcquistatoMaNonRitirato()) {
                 return;
             }
             
@@ -1011,7 +1101,6 @@ public class ProductCard extends VBox {
      */
     private void applyStyles() {
         getStyleClass().add("product-card");
-        setStyle("-fx-background-color: white; -fx-border-color: #ddd; -fx-border-radius: 8; -fx-background-radius: 8;");
         
         setupContactButtonHover();
     }
@@ -1040,7 +1129,7 @@ public class ProductCard extends VBox {
     }
 
     /**
-     * Configura il tooltip per el pulsante azione
+     * Configura il tooltip per il pulsante azione
      */
     private void setupActionButtonTooltip() {
         String actionTooltip = getActionButtonTooltip();
@@ -1064,6 +1153,8 @@ public class ProductCard extends VBox {
             return "Modifica il tuo annuncio";
         } else if (buttonText.contains("Venduto")) {
             return "Questo articolo è stato venduto";
+        } else if (buttonText.contains("In Attesa")) {
+            return "Questo articolo è stato acquistato e attende il ritiro";
         }
         return "";
     }
@@ -1077,19 +1168,17 @@ public class ProductCard extends VBox {
     }
 
     /**
-     * Restituisce lo stile CSS per el badge in base all'origine
+     * Restituisce lo stile CSS per il badge in base all'origine
      */
-    private String getBadgeStyle(OrigineOggetto origine) {
-        if (origine == null) return "badge-vendita";
-        switch (origine) {
-            case USATO: return "badge-vendita";
-            case SCAMBIO: return "badge-scambio";
-            case REGALO:  return "badge-regalo";
-            default:      return "badge-vendita";
-        }
+private String getBadgeStyle(OrigineOggetto origine) {
+    if (origine == null) return "badge-vendita";
+    switch (origine) {
+        case USATO: return "badge-vendita";  // ✅ CORRETTO: USATO invece di USADO
+        case SCAMBIO: return "badge-scambio";
+        case REGALO:  return "badge-regalo";
+        default:      return "badge-vendita";
     }
-
-    // === SETTER PER I CALLBACK ===
+}
 
     /**
      * Imposta il callback per l'azione dettagli
@@ -1106,14 +1195,14 @@ public class ProductCard extends VBox {
     }
 
     /**
-     * Imposta el callback per l'azione preferiti
+     * Imposta il callback per l'azione preferiti
      */
     public void setOnFavoriteAction(Consumer<Annuncio> handler) {
         this.onFavoriteAction = handler;
     }
 
     /**
-     * Imposta el callback per l'aggiornamento annuncio
+     * Imposta il callback per l'aggiornamento annuncio
      */
     public void setOnAnnuncioModificato(Consumer<Annuncio> handler) {
         this.onAnnuncioModificato = handler;
