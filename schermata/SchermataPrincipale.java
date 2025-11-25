@@ -50,6 +50,7 @@ public class SchermataPrincipale extends BorderPane {
     private Tipologia tipologiaSelezionata;
     private String ordinamento = "recent";
     private String queryRicerca = "";
+    private static SchermataPrincipale instance;
 
     /**
      * Costruttore principale della schermata
@@ -63,6 +64,7 @@ public class SchermataPrincipale extends BorderPane {
         initializeUI();
         setupEventHandlers();
         loadAnnunci();
+        instance = this; 
     }
 
     /**
@@ -457,4 +459,48 @@ public class SchermataPrincipale extends BorderPane {
         // Non chiamiamo productGrid.cleanup() perché non esiste
         System.out.println("Pulizia risorse SchermataPrincipale completata");
     }
+
+    // In SchermataPrincipale.java - AGGIUNGI questi metodi alla classe
+
+/**
+ * Gestore globale per gli aggiornamenti degli annunci
+ * Questo metodo viene chiamato quando un annuncio cambia stato (es: diventa VENDUTO)
+ */
+private void gestisciAggiornamentoAnnuncio(int annuncioId, String nuovoStato) {
+    Platform.runLater(() -> {
+        if ("VENDUTO".equals(nuovoStato)) {
+            rimuoviAnnuncioDalleListe(annuncioId);
+            productGrid.rimuoviCard(annuncioId);
+            System.out.println("✅ Annuncio " + annuncioId + " segnato come VENDUTO e rimosso");
+        }
+    });
+}
+
+/**
+ * Rimuove un annuncio dalle liste locali
+ */
+private void rimuoviAnnuncioDalleListe(int annuncioId) {
+    // Rimuovi da tuttiGliAnnunci
+    if (tuttiGliAnnunci != null) {
+        tuttiGliAnnunci.removeIf(annuncio -> annuncio.getId() == annuncioId);
+    }
+    
+    // Rimuovi da annunciFiltrati
+    if (annunciFiltrati != null) {
+        annunciFiltrati.removeIf(annuncio -> annuncio.getId() == annuncioId);
+    }
+    
+    // Aggiorna il contatore
+    int count = annunciFiltrati != null ? annunciFiltrati.size() : 0;
+    filterBar.updateCount(count);
+}
+
+/**
+ * Metodo per notificare che un annuncio è stato venduto
+ * Può essere chiamato da qualsiasi parte dell'applicazione
+ */
+public void notificaAnnuncioVenduto(int annuncioId) {
+    gestisciAggiornamentoAnnuncio(annuncioId, "VENDUTO");
+}
+
 }
