@@ -108,13 +108,50 @@ public class ProductCard extends VBox {
     /**
      * Verifica e gestisce lo stato dell'annuncio
      */
-    private void checkStatoAnnuncio() {
-        if ("VENDUTO".equalsIgnoreCase(annuncio.getStato())) {
-            mostraStatoVenduto();
-        } else if (isAcquistatoMaNonRitirato()) {
-            mostraStatoAcquistato();
-        }
+private void checkStatoAnnuncio() {
+    if ("CONSEGNATO".equalsIgnoreCase(annuncio.getStato())) {
+        mostraStatoConsegnato(); // Nuovo metodo per stato CONSEGNATO
+    } else if ("VENDUTO".equalsIgnoreCase(annuncio.getStato())) {
+        mostraStatoVenduto();
+    } else if (isAcquistatoMaNonRitirato()) {
+        mostraStatoAcquistato();
     }
+}
+
+/**
+ * Mostra lo stato CONSEGNATO disabilitando i pulsanti e mostrando il badge
+ */
+private void mostraStatoConsegnato() {
+    Label consegnatoBadge = new Label("CONSEGNATO");
+    consegnatoBadge.getStyleClass().add("consegnato-badge");
+    consegnatoBadge.setStyle(
+        "-fx-background-color: #27ae60; " +
+        "-fx-text-fill: white; " +
+        "-fx-font-weight: bold; " +
+        "-fx-padding: 5px 10px; " +
+        "-fx-border-radius: 10; " +
+        "-fx-background-radius: 10;"
+    );
+    consegnatoBadge.setVisible(true);
+    
+    // Aggiungi badge al container
+    StackPane imageContainer = (StackPane) getChildren().get(0);
+    StackPane.setAlignment(consegnatoBadge, Pos.TOP_RIGHT);
+    StackPane.setMargin(consegnatoBadge, new Insets(10));
+    imageContainer.getChildren().add(consegnatoBadge);
+    
+    // Disabilita tutti i pulsanti
+    disableActionButtons();
+    
+    // Configura il pulsante principale
+    actionButton.setText("✅ Consegnato");
+    actionButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white;");
+    Tooltip.install(actionButton, new Tooltip("Questo articolo è stato consegnato"));
+    Tooltip.install(consegnatoBadge, new Tooltip("Questo articolo è stato consegnato"));
+    
+    // Applica stile
+    setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #ddd; -fx-border-radius: 8; -fx-background-radius: 8; -fx-opacity: 0.8;");
+}
 
     /**
      * Configura la sezione immagine della card
@@ -1173,7 +1210,7 @@ public class ProductCard extends VBox {
 private String getBadgeStyle(OrigineOggetto origine) {
     if (origine == null) return "badge-vendita";
     switch (origine) {
-        case USATO: return "badge-vendita";  // ✅ CORRETTO: USATO invece di USADO
+        case USATO: return "badge-vendita";  
         case SCAMBIO: return "badge-scambio";
         case REGALO:  return "badge-regalo";
         default:      return "badge-vendita";
@@ -1207,4 +1244,11 @@ private String getBadgeStyle(OrigineOggetto origine) {
     public void setOnAnnuncioModificato(Consumer<Annuncio> handler) {
         this.onAnnuncioModificato = handler;
     }
+
+    // In ProductCard o nella classe che gestisce la lista
+public void aggiornaStatoAnnuncio(int annuncioId, String nuovoStato) {
+    // Trova la card corrispondente e aggiorna/rimuovi
+    if ("VENDUTO".equals(nuovoStato)) {
+    }
+}
 }
