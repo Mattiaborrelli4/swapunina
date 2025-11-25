@@ -55,66 +55,53 @@ public class CodiceDAO {
     }
 
     /**
-     * Verifica il codice di conferma inserito dall'utente
-     * Se corretto, elimina il codice dal database
+     * Verifica un codice senza bisogno dell'ID annuncio
+     * Cerca tra tutti i codici attivi e verifica se il codice inserito corrisponde
+     * Se corretto, elimina l'annuncio correlato
      */
-    /**
- * Verifica un codice senza bisogno dell'ID annuncio
- * Cerca tra tutti i codici attivi e verifica se il codice inserito corrisponde
- * Se corretto, elimina l'annuncio correlato
- */
-/**
- * Verifica un codice senza bisogno dell'ID annuncio
- * Cerca tra tutti i codici attivi e verifica se il codice inserito corrisponde
- * Se corretto, elimina l'annuncio correlato
- */
-public boolean verificaCodice(String codiceInserito) {
-    String sql = "SELECT cc.*, cc.annuncio_id FROM codice_conferma cc " +
-             "WHERE cc.data_creazione > CURRENT_TIMESTAMP - INTERVAL '14 days'";
+    public boolean verificaCodice(String codiceInserito) {
+        String sql = "SELECT cc.*, cc.annuncio_id FROM codice_conferma cc " +
+                 "WHERE cc.data_creazione > CURRENT_TIMESTAMP - INTERVAL '14 days'";
 
-    try (Connection conn = ConnessioneDB.getConnessione();
-         PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-        ResultSet rs = stmt.executeQuery();
+            ResultSet rs = stmt.executeQuery();
 
-        while (rs.next()) {
-            String codiceHash = rs.getString("codice_hash");
-            int tentativi = rs.getInt("tentativi_errati");
-            int codiceId = rs.getInt("id");
-            int annuncioId = rs.getInt("annuncio_id");
+            while (rs.next()) {
+                String codiceHash = rs.getString("codice_hash");
+                int tentativi = rs.getInt("tentativi_errati");
+                int codiceId = rs.getInt("id");
+                int annuncioId = rs.getInt("annuncio_id");
 
-            // Verifica se il codice è ancora valido (meno di 3 tentativi errati)
-            if (tentativi >= 3) {
-                continue; // Passa al codice successivo
-            }
-
-            // Verifica il codice usando BCrypt
-            boolean codiceCorretto = BCrypt.checkpw(codiceInserito, codiceHash);
-
-            if (codiceCorretto) {
-                // Codice corretto - elimina l'annuncio correlato
-                AnnuncioDAO annuncioDAO = new AnnuncioDAO();
-                boolean annuncioEliminato = annuncioDAO.eliminaAnnuncioCompleto(annuncioId);
-                
-                if (annuncioEliminato) {
-                    // Elimina anche il codice
-                    eliminaCodice(codiceId);
-                    return true;
-                } else {
-                    System.err.println("Errore nell'eliminazione dell'annuncio " + annuncioId);
-                    return false;
+                if (tentativi >= 3) {
+                    continue;
                 }
-            } else {
-                // Codice errato - incrementa tentativi
-                incrementaTentativiErrati(codiceId);
+
+                boolean codiceCorretto = BCrypt.checkpw(codiceInserito, codiceHash);
+
+                if (codiceCorretto) {
+                    // ✅ CORREZIONE: Cambia stato a VENDUTO invece di eliminare
+                    AnnuncioDAO annuncioDAO = new AnnuncioDAO();
+                    boolean statoAggiornato = annuncioDAO.aggiornaStatoAnnuncio(annuncioId, "VENDUTO");
+                    
+                    if (statoAggiornato) {
+                        // ✅ NOTIFICA LA SCHERMATA PRINCIPALE CHE L'ANNUNCIO È VENDUTO
+                        notificaSchermataPrincipale(annuncioId);
+                        
+                        eliminaCodice(codiceId);
+                        return true;
+                    }
+                } else {
+                    incrementaTentativiErrati(codiceId);
+                }
             }
+        } catch (SQLException e) {
+            System.err.println("Errore nella verifica del codice: " + codiceInserito);
+            e.printStackTrace();
         }
-    } catch (SQLException e) {
-        System.err.println("Errore nella verifica del codice: " + codiceInserito);
-        e.printStackTrace();
+        return false;
     }
-    return false;
-}
 
     /**
      * Recupera un codice per utente e annuncio
@@ -245,7 +232,7 @@ public boolean verificaCodice(String codiceInserito) {
      * Genera un codice casuale a 6 caratteri alfanumerici
      */
     private String generaCodiceAlfanumerico() {
-        String caratteri = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        String caratteri = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789";
         Random random = new Random();
         StringBuilder codice = new StringBuilder();
         
@@ -292,48 +279,176 @@ public boolean verificaCodice(String codiceInserito) {
     }
 
     /**
-     * Verifica un codice per un annuncio specifico (per il venditore)
+     * Notifica la schermata principale che un annuncio è stato venduto
      */
-    public boolean verificaCodicePerAnnuncio(int annuncioId, String codiceInserito) {
-        // MODIFICA: Cambiato da 24 ore a 14 giorni
-        String sql = "SELECT cc.* FROM codice_conferma cc " +
-                 "WHERE cc.annuncio_id = ? AND cc.data_creazione > CURRENT_TIMESTAMP - INTERVAL '14 days'";
-
-        try (Connection conn = ConnessioneDB.getConnessione();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setInt(1, annuncioId);
-            ResultSet rs = stmt.executeQuery();
-
-            if (rs.next()) {
-                String codiceHash = rs.getString("codice_hash");
-                int tentativi = rs.getInt("tentativi_errati");
-                int codiceId = rs.getInt("id");
-
-                // Verifica se il codice è ancora valido (meno di 3 tentativi errati)
-                if (tentativi >= 3) {
-                    return false;
-                }
-
-                // Verifica il codice usando BCrypt
-                boolean codiceCorretto = BCrypt.checkpw(codiceInserito, codiceHash);
-
-                if (codiceCorretto) {
-                    // Codice corretto - elimina il codice
-                    eliminaCodice(codiceId);
-                    return true;
-                } else {
-                    // Codice errato - incrementa tentativi
-                    incrementaTentativiErrati(codiceId);
-                    return false;
-                }
-            }
-        } catch (SQLException e) {
-            System.err.println("Errore nella verifica del codice per l'annuncio " + annuncioId);
-            e.printStackTrace();
+    private void notificaSchermataPrincipale(int annuncioId) {
+        try {
+            // Ottieni un riferimento alla schermata principale tramite SessionManager o altro metodo
+            // Questo è un esempio - potresti dover adattarlo al tuo architettura
+            notificaAnnuncioVendutoStatic(annuncioId);
+        } catch (Exception e) {
+            System.err.println("Errore nella notifica della schermata principale: " + e.getMessage());
         }
+    }
+
+    // Metodo statico per permettere l'accesso globale
+private static void notificaAnnuncioVendutoStatic(int annuncioId) {
+    try {
+        // ✅ APPROCCIO SEMPLICE: Chiama direttamente il metodo statico
+        Class<?> schermataClass = Class.forName("schermata.SchermataPrincipale");
+        java.lang.reflect.Method notifyMethod = schermataClass.getMethod("notificaAnnuncioVenduto", int.class);
+        notifyMethod.invoke(null, annuncioId);
+        
+        System.out.println("🔔 Notifica inviata per annuncio venduto: " + annuncioId);
+    } catch (Exception e) {
+        // Fallback: stampa il messaggio
+        System.out.println("🔔 Annuncio " + annuncioId + " venduto - [Fallback: SchermataPrincipale non trovata]");
+        e.printStackTrace();
+    }
+}
+
+
+/**
+ * Verifica un codice per un annuncio specifico (per il venditore)
+ * con controllo che solo il proprietario dell'annuncio possa verificare il codice
+ */
+public boolean verificaCodicePerAnnuncio(int annuncioId, String codiceInserito, int venditoreId) {
+    System.out.println("=== 🚀 INIZIO VERIFICA CODICE DETTAGLIATA ===");
+    System.out.println("📋 PARAMETRI:");
+    System.out.println("   - Annuncio ID: " + annuncioId);
+    System.out.println("   - Codice inserito: " + codiceInserito);
+    System.out.println("   - Venditore ID: " + venditoreId);
+    System.out.println("   - Codice atteso: 7H203C");
+
+    // Test connessione database
+    try (Connection conn = ConnessioneDB.getConnessione()) {
+        if (conn != null && !conn.isClosed()) {
+            System.out.println("✅ Connessione database OK");
+        }
+    } catch (SQLException e) {
+        System.err.println("❌ Errore connessione database: " + e.getMessage());
+    }
+
+    // VERIFICA VENDITORE
+    System.out.println("🔍 VERIFICA VENDITORE:");
+    boolean isVenditore = isVenditoreAnnuncio(annuncioId, venditoreId);
+    System.out.println("   - Risultato: " + isVenditore);
+    
+    if (!isVenditore) {
+        System.err.println("❌ ACCESSO NEGATO: Non sei il venditore di questo annuncio");
         return false;
     }
 
+    // VERIFICA CODICE
+    String sql = "SELECT cc.* FROM codice_conferma cc " +
+             "WHERE cc.annuncio_id = ? AND cc.data_creazione > CURRENT_TIMESTAMP - INTERVAL '14 days'";
+
+    try (Connection conn = ConnessioneDB.getConnessione();
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+        stmt.setInt(1, annuncioId);
+        ResultSet rs = stmt.executeQuery();
+
+        if (rs.next()) {
+            String codiceHash = rs.getString("codice_hash");
+            String codicePlain = rs.getString("codice_plain");
+            int tentativi = rs.getInt("tentativi_errati");
+            int codiceId = rs.getInt("id");
+
+            System.out.println("🔍 DATI CODICE DAL DB:");
+            System.out.println("   - Codice plain: " + codicePlain);
+            System.out.println("   - Tentativi errati: " + tentativi);
+            System.out.println("   - Codice ID: " + codiceId);
+
+            if (tentativi >= 3) {
+                System.err.println("❌ CODICE BLOCCATO: Troppi tentativi errati");
+                return false;
+            }
+
+            // VERIFICA BCrypt
+            System.out.println("🔍 VERIFICA CRITTOGRAFICA:");
+            System.out.println("   - Codice inserito: " + codiceInserito);
+            System.out.println("   - Codice atteso: " + codicePlain);
+            System.out.println("   - Hash nel DB: " + codiceHash.substring(0, 20) + "...");
+            
+            boolean codiceCorretto = BCrypt.checkpw(codiceInserito, codiceHash);
+            System.out.println("   - Risultato BCrypt: " + codiceCorretto);
+
+            if (codiceCorretto) {
+                System.out.println("✅ CODICE CORRETTO - Aggiornamento stato...");
+                AnnuncioDAO annuncioDAO = new AnnuncioDAO();
+                boolean statoAggiornato = annuncioDAO.aggiornaStatoAnnuncio(annuncioId, "VENDUTO");
+                
+                System.out.println("   - Stato aggiornato: " + statoAggiornato);
+                
+                if (statoAggiornato) {
+                    notificaSchermataPrincipale(annuncioId);
+                    eliminaCodice(codiceId);
+                    System.out.println("🎉 SUCCESSO: Codice verificato e annuncio venduto!");
+                    return true;
+                } else {
+                    System.err.println("❌ FALLITO: Aggiornamento stato annuncio");
+                    return false;
+                }
+            } else {
+                incrementaTentativiErrati(codiceId);
+                System.err.println("❌ CODICE ERRATO: Tentativo " + (tentativi + 1) + " di 3");
+                return false;
+            }
+        } else {
+            System.err.println("❌ NESSUN CODICE TROVATO per annuncio " + annuncioId);
+            return false;
+        }
+    } catch (SQLException e) {
+        System.err.println("❌ ERRORE SQL: " + e.getMessage());
+        e.printStackTrace();
+    }
     
+    System.out.println("=== ❌ FINE VERIFICA CODICE CON ERRORI ===");
+    return false;
+}
+
+/**
+ * Verifica se l'utente è il venditore dell'annuncio
+ */
+private boolean isVenditoreAnnuncio(int annuncioId, int venditoreId) {
+    System.out.println("🔍 VERIFICA VENDITORE:");
+    System.out.println("   - Annuncio ID: " + annuncioId);
+    System.out.println("   - Venditore ID richiesto: " + venditoreId);
+    
+    String sql = "SELECT venditore_id, titolo FROM annuncio WHERE id = ?";
+    
+    try (Connection conn = ConnessioneDB.getConnessione();
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
+        
+        stmt.setInt(1, annuncioId);
+        ResultSet rs = stmt.executeQuery();
+        
+        if (rs.next()) {
+            int venditoreReale = rs.getInt("venditore_id");
+            String titoloAnnuncio = rs.getString("titolo");
+            boolean isProprietario = (venditoreReale == venditoreId);
+            
+            System.out.println("   - Venditore reale nel DB: " + venditoreReale);
+            System.out.println("   - Titolo annuncio: " + titoloAnnuncio);
+            System.out.println("   - È proprietario: " + isProprietario);
+            
+            if (!isProprietario) {
+                System.err.println("⚠️  TENTATIVO DI ACCESSO NON AUTORIZZATO:");
+                System.err.println("   - Utente richiedente: " + venditoreId);
+                System.err.println("   - Venditore reale: " + venditoreReale);
+                System.err.println("   - Annuncio: " + annuncioId + " - " + titoloAnnuncio);
+            }
+            
+            return isProprietario;
+        } else {
+            System.err.println("❌ ANNUNCIO NON TROVATO: " + annuncioId);
+            return false;
+        }
+    } catch (SQLException e) {
+        System.err.println("❌ Errore SQL nella verifica del proprietario per annuncio " + annuncioId);
+        e.printStackTrace();
+    }
+    return false;
+}
 }
