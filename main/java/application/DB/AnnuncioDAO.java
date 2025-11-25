@@ -204,30 +204,30 @@ public class AnnuncioDAO {
     }
 
     // Recupera gli annunci attivi
-    public List<Annuncio> getAnnunciAttivi() {
-        List<Annuncio> annunci = new ArrayList<>();
-        
-        String sql = "SELECT a.id AS annuncio_id, a.titolo, u.nome AS nome_venditore " +
-                     "FROM annuncio a " +
-                     "JOIN utente u ON a.venditore_id = u.id " +
-                     "WHERE a.stato = 'ATTIVO'";
+public List<Annuncio> getAnnunciAttivi() {
+    List<Annuncio> annunci = new ArrayList<>();
+    
+    String sql = "SELECT a.id AS annuncio_id, a.titolo, u.nome AS nome_venditore " +
+                 "FROM annuncio a " +
+                 "JOIN utente u ON a.venditore_id = u.id " +
+                 "WHERE a.stato = 'ATTIVO'"; // ✅ Solo annunci ATTIVI (non CONSEGNATI)
 
-        try (Connection conn = ConnessioneDB.getConnessione();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+    try (Connection conn = ConnessioneDB.getConnessione();
+         PreparedStatement stmt = conn.prepareStatement(sql);
+         ResultSet rs = stmt.executeQuery()) {
 
-            while (rs.next()) {
-                int annuncioId = rs.getInt("annuncio_id");
-                Annuncio annuncio = getAnnuncioById(annuncioId);
-                if (annuncio != null) {
-                    annunci.add(annuncio);
-                }
+        while (rs.next()) {
+            int annuncioId = rs.getInt("annuncio_id");
+            Annuncio annuncio = getAnnuncioById(annuncioId);
+            if (annuncio != null) {
+                annunci.add(annuncio);
             }
-        } catch (SQLException e) {
-            System.err.println("Errore nel recupero degli annunci attivi: " + e.getMessage());
         }
-        return annunci;
+    } catch (SQLException e) {
+        System.err.println("Errore nel recupero degli annunci attivi: " + e.getMessage());
     }
+    return annunci;
+}
 
     // Aggiorna lo stato di un annuncio
     public boolean aggiornaStatoAnnuncio(int annuncioId, String nuovoStato) {
@@ -810,4 +810,3 @@ public boolean eliminaAnnuncio(int annuncioId) {
 
 
 }
-
