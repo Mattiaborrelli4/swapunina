@@ -11,12 +11,26 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.scene.shape.Circle;
 import javafx.util.StringConverter;
+import javafx.util.Pair;
+
 import java.io.File;
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Optional;
 
+import application.Classe.Annuncio;
+import application.DB.AnnuncioDAO;
 import application.DB.UtentiDAO;
-import application.DB.CloudinaryService; // Import corretto per il servizio Cloudinary
+import application.DB.CloudinaryService;
+import application.DB.CodiceDAO;
+import application.DB.SessionManager;
+import application.DB.ConnessioneDB;
 
 /**
  * Dialog per la gestione dell'account utente
@@ -26,7 +40,7 @@ import application.DB.CloudinaryService; // Import corretto per il servizio Clou
  * - Gestione saldo e ricariche
  * - Cambio password
  * - Logout
- * - Tema chiaro/scuro</p>
+ * - Gestione codici di sicurezza per acquisti</p>
  */
 public class AccountDialog extends Dialog<Void> {
     
@@ -37,8 +51,8 @@ public class AccountDialog extends Dialog<Void> {
     private ScrollPane scrollPane;
     
     // ========== GESTIONE STATO ==========
-    private boolean darkMode = false;
     private String userEmail;
+    private String nomeUtente; // Aggiunto per memorizzare il nome
     
     // ========== HANDLER PER EVENTI ESTERNI ==========
     private Runnable logoutHandler;
@@ -47,7 +61,8 @@ public class AccountDialog extends Dialog<Void> {
     // ========== GESTIONE DATI ==========
     private CarrelloManager carrelloManager;
     private UtentiDAO utentiDAO;
-    private CloudinaryService cloudinaryService; // Servizio per Cloudinary
+    private CloudinaryService cloudinaryService;
+    private CodiceDAO codiceDAO;
     
     /**
      * Costruttore del dialogo account
@@ -58,9 +73,11 @@ public class AccountDialog extends Dialog<Void> {
      */
     public AccountDialog(String nome, String email, String userEmail) {
         this.userEmail = userEmail;
+        this.nomeUtente = nome; // Memorizza il nome
         this.carrelloManager = CarrelloManager.getInstance();
         this.utentiDAO = new UtentiDAO();
-        this.cloudinaryService = new CloudinaryService(); // Inizializza Cloudinary
+        this.cloudinaryService = new CloudinaryService();
+        this.codiceDAO = new CodiceDAO();
         
         if (userEmail == null || userEmail.isEmpty()) {
             System.out.println("Attenzione: userEmail è null o vuota");
@@ -70,33 +87,30 @@ public class AccountDialog extends Dialog<Void> {
         caricaFotoProfilo();
     }
     
-    /**
-     * Inizializza l'interfaccia utente del dialogo
-     */
     private void inizializzaUI(String nome, String email) {
         setTitle("Il Tuo Account");
-        
+
         // Crea il contenuto principale
         VBox mainContent = createMainContent(nome, email);
-        
-        // Configura ScrollPane
+
+        // Configura ScrollPane (NON TRASPARENTE!)
         scrollPane = new ScrollPane();
         scrollPane.setContent(mainContent);
         scrollPane.setFitToWidth(true);
         scrollPane.setPrefViewportHeight(600);
-        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-        
+
+        // Sfondo bianco sullo scrollPane e sul contenuto
+        scrollPane.setStyle("-fx-background-color: white;");
+        mainContent.setStyle("-fx-background-color: white; -fx-text-fill: black;");
+
         // Imposta il contenuto della finestra
         getDialogPane().setContent(scrollPane);
         getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        
-        // Applica stile iniziale
-        applyTheme();
-        
+
         // Imposta dimensioni minime
         getDialogPane().setMinWidth(450);
         getDialogPane().setMinHeight(600);
-        
+
         // Aggiorna il saldo all'apertura
         aggiornaSaldoDisplay();
     }
@@ -149,9 +163,9 @@ public class AccountDialog extends Dialog<Void> {
         VBox contoSection = createContoSection();
         grid.add(contoSection, 0, 3, 2, 1);
         
-        // Toggle per tema chiaro/scuro
-        HBox themeBox = createThemeBox();
-        grid.add(themeBox, 0, 4, 2, 1);
+        // Sezione Codici di Sicurezza (NUOVA SEZIONE AGGIUNTA)
+        VBox codiciSection = createCodiciSection();
+        grid.add(codiciSection, 0, 4, 2, 1);
         
         // Container per i pulsanti
         VBox buttonsContainer = createButtonsContainer();
@@ -162,6 +176,413 @@ public class AccountDialog extends Dialog<Void> {
         
         return mainContent;
     }
+    
+    /**
+     * Crea la sezione per la gestione dei codici di sicurezza (NUOVA SEZIONE)
+     */
+    private VBox createCodiciSection() {
+        VBox codiciSection = new VBox(10);
+        codiciSection.setAlignment(Pos.CENTER);
+        codiciSection.setPadding(new Insets(15));
+        codiciSection.setStyle("-fx-background-color: #fff3cd; -fx-border-radius: 8; -fx-border-color: #ffeaa7;");
+
+        Label titoloCodici = new Label("🔐 Codici di Sicurezza");
+        titoloCodici.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #856404;");
+
+        Label descrizione = new Label("Gestisci i codici per i tuoi acquisti e vendite");
+        descrizione.setStyle("-fx-font-size: 12px; -fx-text-fill: #856404;");
+
+        HBox pulsantiCodici = new HBox(10);
+        pulsantiCodici.setAlignment(Pos.CENTER);
+
+        // Bottone per visualizzare codici attivi (ACQUIRENTE)
+        Button visualizzaCodiciButton = new Button("👁️ Visualizza Codici Attivi");
+        visualizzaCodiciButton.setStyle("-fx-background-color: #17a2b8; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px 12px;");
+        visualizzaCodiciButton.setOnAction(e -> mostraCodiciAttivi());
+
+        // Bottone per verificare codice (VENDITORE)
+        Button verificaCodiceButton = new Button("✓ Verifica Codice");
+        verificaCodiceButton.setStyle("-fx-background-color: #28a745; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px 12px;");
+        verificaCodiceButton.setOnAction(e -> mostraVerificaCodice());
+
+        pulsantiCodici.getChildren().addAll(visualizzaCodiciButton, verificaCodiceButton);
+
+        codiciSection.getChildren().addAll(titoloCodici, descrizione, pulsantiCodici);
+
+        return codiciSection;
+    }
+    
+    /**
+     * Mostra i codici attivi dell'utente (per ACQUIRENTE)
+     */
+    // Sostituisci i metodi relativi ai codici nell'AccountDialog con questi:
+
+/**
+ * Mostra i codici attivi dell'utente (per ACQUIRENTE) recuperati dal database
+ */
+  /**
+ * Mostra i codici attivi dell'utente (per ACQUIRENTE) recuperati dal database
+ */
+private void mostraCodiciAttivi() {
+    if (userEmail == null || userEmail.isEmpty()) {
+        showAlert("Errore", "Utente non trovato. Rieffettua il login.");
+        return;
+    }
+
+    try {
+        // MODIFICA: usa getIdByEmail invece di getUserIdByEmail
+        int userId = utentiDAO.getIdByEmail(userEmail);
+        if (userId == -1) {
+            showAlert("Errore", "Utente non trovato nel database.");
+            return;
+        }
+
+        // Recupera i codici attivi dal database
+        List<Map<String, String>> codiciAttivi = codiceDAO.getCodiciAttiviPerUtente(userId);
+
+        if (codiciAttivi == null || codiciAttivi.isEmpty()) {
+            // MODIFICA: Aggiornato il messaggio per riflettere la durata di 2 settimane
+            showAlert("Codici Attivi", "Non hai codici attivi al momento.\n\nI codici compaiono qui dopo aver effettuato un acquisto e rimangono validi per 2 settimane.");
+            return;
+        }
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("I Tuoi Codici Attivi");
+        alert.setHeaderText("📦 Codici per i tuoi acquisti in corso");
+
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(15));
+        content.setStyle("-fx-background-color: white;");
+
+        Label titolo = new Label("Ecco i tuoi codici di ritiro:");
+        titolo.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #2c3e50;");
+
+        content.getChildren().add(titolo);
+
+        // Crea una lista ordinata dei codici
+        for (int i = 0; i < codiciAttivi.size(); i++) {
+            Map<String, String> codice = codiciAttivi.get(i);
+            
+            VBox codiceBox = createCodiceBox(codice, i + 1);
+            content.getChildren().add(codiceBox);
+            
+            // Aggiungi separatore tra i codici (tranche per l'ultimo)
+            if (i < codiciAttivi.size() - 1) {
+                Separator separator = new Separator();
+                separator.setPadding(new Insets(8, 0, 8, 0));
+                content.getChildren().add(separator);
+            }
+        }
+
+        // Aggiungi istruzioni
+        VBox istruzioniBox = new VBox(5);
+        istruzioniBox.setPadding(new Insets(15, 0, 0, 0));
+        istruzioniBox.setStyle("-fx-background-color: #e8f5e8; -fx-padding: 10; -fx-border-radius: 5;");
+
+        Label istruzione1 = new Label("💡 Mostra il codice al venditore quando ritiri il prodotto");
+        istruzione1.setStyle("-fx-font-size: 12px; -fx-text-fill: #27ae60;");
+
+        // MODIFICA: Aggiornata la durata a 2 settimane
+        Label istruzione2 = new Label("🔒 Ogni codice è valido per 2 settimane");
+        istruzione2.setStyle("-fx-font-size: 12px; -fx-text-fill: #27ae60;");
+
+        Label istruzione3 = new Label("⏰ Il codice scade automaticamente dopo l'uso");
+        istruzione3.setStyle("-fx-font-size: 12px; -fx-text-fill: #27ae60;");
+
+        istruzioniBox.getChildren().addAll(istruzione1, istruzione2, istruzione3);
+        content.getChildren().add(istruzioniBox);
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefViewportHeight(400);
+        scrollPane.setStyle("-fx-background-color: white;");
+
+        alert.getDialogPane().setContent(scrollPane);
+        alert.getDialogPane().setPrefSize(500, 450);
+        alert.showAndWait();
+
+    } catch (Exception e) {
+        showAlert("Errore", "Errore nel caricamento dei codici: " + e.getMessage());
+        e.printStackTrace();
+    }
+}
+
+
+/**
+ * Crea un box visivamente accattivante per ogni codice
+ */
+private VBox createCodiceBox(Map<String, String> codice, int numero) {
+        VBox codiceBox = new VBox(8);
+        codiceBox.setPadding(new Insets(12));
+        codiceBox.setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #e9ecef; -fx-border-radius: 8; -fx-border-width: 1;");
+
+        // Header con numero e titolo
+        HBox headerBox = new HBox(10);
+        headerBox.setAlignment(Pos.CENTER_LEFT);
+
+        Label numeroLabel = new Label(numero + ".");
+        numeroLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #6c757d;");
+
+        String titoloProdotto = codice.get("titolo") != null ? codice.get("titolo") : "Prodotto";
+        Label titoloLabel = new Label(titoloProdotto);
+        titoloLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #2c3e50;");
+        titoloLabel.setWrapText(true);
+
+        headerBox.getChildren().addAll(numeroLabel, titoloLabel);
+
+        // Codice di sicurezza
+        HBox codiceBoxInner = new HBox(10);
+        codiceBoxInner.setAlignment(Pos.CENTER_LEFT);
+
+        Label codiceLabel = new Label("Codice:");
+        codiceLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #495057;");
+
+        String codiceValueStr = codice.get("codice") != null ? codice.get("codice") : "N/A";
+        Label codiceValue = new Label(codiceValueStr);
+        codiceValue.setStyle("-fx-font-family: 'Courier New'; -fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: #e74c3c; -fx-background-color: #fff; -fx-padding: 5 10; -fx-border-color: #ddd; -fx-border-radius: 4;");
+
+        codiceBoxInner.getChildren().addAll(codiceLabel, codiceValue);
+
+        // Info aggiuntive
+        Label infoLabel = new Label("📋 Presenta questo codice al venditore per ritirare: " + titoloProdotto);
+        infoLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #7f8c8d; -fx-wrap-text: true;");
+
+        codiceBox.getChildren().addAll(headerBox, codiceBoxInner, infoLabel);
+
+        return codiceBox;
+    }
+
+
+/**
+ * Verifica il codice nel database con controllo di sicurezza
+ */
+private void verificaCodiceConDatabase(int annuncioId, String codice) {
+    try {
+        // Usa SessionManager per ottenere l'ID utente corrente
+        int currentUserId = SessionManager.getCurrentUserId();
+        
+        if (currentUserId == -1) {
+            showAlert("Errore", "Utente non autenticato. Effettua il login.");
+            return;
+        }
+
+        //Passa tutti e tre i parametri richiesti
+        boolean codiceValido = codiceDAO.verificaCodicePerAnnuncio(annuncioId, codice, currentUserId);
+        
+        if (codiceValido) {
+            Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
+            successAlert.setTitle("✅ Codice Verificato");
+            successAlert.setHeaderText("Consegna completata!");
+            successAlert.setContentText("La transazione è stata confermata con successo.\n\n" +
+                "• L'annuncio è stato segnato come CONSEGNATO\n" +
+                "• Verrà rimosso dalla piattaforma\n" +
+                "• Il codice è stato invalidato automaticamente\n\n" +
+                "Il prodotto è stato consegnato all'acquirente.");
+            successAlert.showAndWait();
+        } else {
+            Alert errorAlert = new Alert(Alert.AlertType.ERROR);
+            errorAlert.setTitle("❌ Codice Non Valido");
+            errorAlert.setHeaderText("Codice errato o accesso negato");
+            errorAlert.setContentText("Impossibile verificare il codice.\n\nPossibili motivi:\n" +
+                "• Codice errato\n" +
+                "• Codice scaduto (2 settimane)\n" +
+                "• Troppi tentativi errati\n" +
+                "• Non sei il venditore di questo annuncio\n" +
+                "• Annuncio non trovato\n\n" +
+                "Verifica con l'acquirente e riprova.");
+            errorAlert.showAndWait();
+        }
+        
+    } catch (Exception e) {
+        showAlert("Errore", "Si è verificato un errore durante la verifica: " + e.getMessage());
+    }
+}
+
+
+
+/**
+ * Mostra il dialogo per verificare un codice (per VENDITORE)
+ * Ora include anche l'ID annuncio
+ */
+/**
+ * Mostra il dialogo per verificare un codice (per VENDITORE)
+ * Ora mostra solo gli annunci del venditore corrente che hanno codici pendenti
+ */
+private void mostraVerificaCodice() {
+    // Recupera l'ID dell'utente corrente (venditore)
+    int currentUserId = SessionManager.getCurrentUserId();
+    if (currentUserId == -1) {
+        showAlert("Errore", "Utente non autenticato. Effettua il login.");
+        return;
+    }
+
+    // Recupera gli annunci del venditore che hanno codici pendenti
+    List<Annuncio> annunciConCodici = getAnnunciConCodiciPendenti(currentUserId);
+    
+    if (annunciConCodici == null || annunciConCodici.isEmpty()) {
+        showAlert("Nessun codice pendente", 
+            "Non hai annunci con codici di sicurezza in attesa di verifica.\n\n" +
+            "I codici compaiono qui quando un acquirente effettua un acquisto dai tuoi annunci.");
+        return;
+    }
+
+    Dialog<Pair<Integer, String>> dialog = new Dialog<>();
+    dialog.setTitle("Verifica Codice di Sicurezza");
+    dialog.setHeaderText("Seleziona l'annuncio e inserisci il codice");
+
+    // Setup dei bottoni
+    ButtonType verificaButtonType = new ButtonType("Verifica", ButtonBar.ButtonData.OK_DONE);
+    dialog.getDialogPane().getButtonTypes().addAll(verificaButtonType, ButtonType.CANCEL);
+
+    // Creazione del contenuto
+    VBox content = new VBox(15);
+    content.setPadding(new Insets(20));
+    content.setStyle("-fx-background-color: white;");
+
+    // Istruzioni
+    Label labelIstruzioni = new Label("Seleziona l'annuncio per cui vuoi verificare un codice:");
+    labelIstruzioni.setStyle("-fx-font-size: 14px; -fx-text-fill: #2c3e50; -fx-wrap-text: true;");
+
+    // ComboBox per selezionare l'annuncio
+    VBox annuncioBox = new VBox(5);
+    Label labelAnnuncio = new Label("I tuoi annunci con codici pendenti:");
+    labelAnnuncio.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
+
+    ComboBox<String> annuncioComboBox = new ComboBox<>();
+    
+    // Mappa per associare la selezione all'ID annuncio
+    Map<String, Integer> annuncioMap = new java.util.HashMap<>();
+    
+    for (Annuncio annuncio : annunciConCodici) {
+        String displayText = String.format("%s (ID: %d) - €%.2f", 
+            annuncio.getTitolo(), annuncio.getId(), annuncio.getPrezzo());
+        annuncioComboBox.getItems().add(displayText);
+        annuncioMap.put(displayText, annuncio.getId());
+    }
+    
+    annuncioComboBox.setPromptText("Seleziona un annuncio");
+    annuncioComboBox.setStyle("-fx-font-size: 14px;");
+
+    annuncioBox.getChildren().addAll(labelAnnuncio, annuncioComboBox);
+
+    // Campo Codice
+    VBox codiceBox = new VBox(5);
+    Label labelCodice = new Label("Codice di sicurezza (6 caratteri):");
+    labelCodice.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
+
+    TextField codiceField = new TextField();
+    codiceField.setPromptText("Es: A1B2C3");
+    codiceField.setStyle("-fx-font-size: 16px; -fx-alignment: center; -fx-font-family: 'Courier New';");
+    codiceField.setMaxWidth(200);
+
+    // Limita l'input a 6 caratteri e converte in maiuscolo
+    codiceField.textProperty().addListener((observable, oldValue, newValue) -> {
+        if (newValue.length() > 6) {
+            codiceField.setText(oldValue);
+        }
+        if (!newValue.toUpperCase().equals(newValue)) {
+            codiceField.setText(newValue.toUpperCase());
+        }
+    });
+
+    codiceBox.getChildren().addAll(labelCodice, codiceField);
+
+    content.getChildren().addAll(labelIstruzioni, annuncioBox, codiceBox);
+    dialog.getDialogPane().setContent(content);
+
+    // Converti il risultato quando viene premuto il bottone Verifica
+    dialog.setResultConverter(dialogButton -> {
+        if (dialogButton == verificaButtonType) {
+            String annuncioSelezionato = annuncioComboBox.getValue();
+            if (annuncioSelezionato == null) {
+                showAlert("Errore", "Seleziona un annuncio dalla lista.");
+                return null;
+            }
+
+            // Recupera l'ID annuncio dalla mappa
+            int annuncioId = annuncioMap.get(annuncioSelezionato);
+
+            String codice = codiceField.getText().trim().toUpperCase();
+            if (codice.length() != 6) {
+                showAlert("Errore", "Il codice deve essere esattamente di 6 caratteri.");
+                return null;
+            }
+            
+            if (!codice.matches("[A-Z0-9]{6}")) {
+                showAlert("Errore", "Il codice deve contenere solo lettere maiuscole e numeri.");
+                return null;
+            }
+            
+            return new Pair<>(annuncioId, codice);
+        }
+        return null;
+    });
+
+    // Mostra la finestra e processa il risultato
+    Optional<Pair<Integer, String>> result = dialog.showAndWait();
+    if (result.isPresent()) {
+        int annuncioId = result.get().getKey();
+        String codice = result.get().getValue();
+        verificaCodiceConDatabase(annuncioId, codice);
+    }
+}
+
+/**
+ * Recupera gli annunci del venditore che hanno codici di sicurezza pendenti
+ */
+private List<Annuncio> getAnnunciConCodiciPendenti(int venditoreId) {
+    List<Annuncio> annunciConCodici = new java.util.ArrayList<>();
+    
+    try {
+        String sql = "SELECT DISTINCT a.* " +
+                    "FROM annuncio a " +
+                    "JOIN codice_conferma cc ON a.id = cc.annuncio_id " +
+                    "WHERE a.venditore_id = ? " +
+                    "AND cc.data_creazione > CURRENT_TIMESTAMP - INTERVAL '14 days' " +
+                    "AND a.stato = 'ATTIVO'";
+        
+        try (Connection conn = ConnessioneDB.getConnessione();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, venditoreId);
+            ResultSet rs = stmt.executeQuery();
+            
+            AnnuncioDAO annuncioDAO = new AnnuncioDAO();
+            while (rs.next()) {
+                int annuncioId = rs.getInt("id");
+                Annuncio annuncio = annuncioDAO.getAnnuncioById(annuncioId);
+                if (annuncio != null) {
+                    annunciConCodici.add(annuncio);
+                }
+            }
+        }
+    } catch (SQLException e) {
+        System.err.println("Errore nel recupero annunci con codici pendenti: " + e.getMessage());
+        e.printStackTrace();
+    }
+    
+    return annunciConCodici;
+}
+
+    
+    /**
+     * Simula la verifica del codice (da sostituire con chiamata reale al database)
+     */
+    private boolean verificaCodiceSimulato(String codice) {
+        // ESEMPIO: Logica di verifica simulata
+        // In produzione, questo dovrebbe usare CodiceDAO.verificaCodiceConferma()
+        
+        // Verifica che il codice sia di 6 caratteri alfanumerici
+        if (!codice.matches("^[A-Z0-9]{6}$")) {
+            return false;
+        }
+        
+        // Simula una verifica nel database
+        // I codici "validi" per la demo sono quelli che iniziano con A, B o C
+        return codice.startsWith("A") || codice.startsWith("B") || codice.startsWith("C");
+    }
+    
+    // ========== METODI ESISTENTI (MANTENUTI DAL CODICE ORIGINALE) ==========
     
     /**
      * Crea il container per l'immagine profilo
@@ -199,89 +620,42 @@ public class AccountDialog extends Dialog<Void> {
         grid.addRow(2, emailLabel, emailValue);
     }
     
-    /**
-     * Crea la sezione per la gestione del conto
-     */
     private VBox createContoSection() {
         VBox contoSection = new VBox(10);
         contoSection.setAlignment(Pos.CENTER);
         contoSection.setPadding(new Insets(15));
         contoSection.setStyle("-fx-background-color: #f8f9fa; -fx-border-radius: 8; -fx-border-color: #e9ecef;");
-        
+
         Label titoloConto = new Label("💳 Il Mio Conto");
-        titoloConto.setStyle("-fx-font-weight: bold; -fx-font-size: 16px;");
-        
+        titoloConto.setStyle("-fx-font-weight: bold; -fx-font-size: 16px; -fx-text-fill: black;");
+
         HBox saldoBox = new HBox(10);
         saldoBox.setAlignment(Pos.CENTER);
-        
+
         Label saldoTitolo = new Label("Saldo Attuale:");
-        saldoTitolo.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-        
+        saldoTitolo.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: black;");
+
         saldoLabel = new Label("€0,00");
         saldoLabel.setStyle("-fx-font-size: 18px; -fx-text-fill: #2e7d32; -fx-font-weight: bold;");
-        
+
         saldoBox.getChildren().addAll(saldoTitolo, saldoLabel);
-        
+
         Button ricaricaButton = new Button("💰 Ricarica");
         ricaricaButton.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8px 16px;");
         ricaricaButton.setOnAction(e -> mostraDialogRicarica());
-        
+
         HBox pulsantiBox = new HBox(10);
         pulsantiBox.setAlignment(Pos.CENTER);
-        
+
         Button aggiornaButton = new Button("🔄 Aggiorna");
         aggiornaButton.setStyle("-fx-background-color: #6b7280; -fx-text-fill: white; -fx-padding: 8px 16px;");
         aggiornaButton.setOnAction(e -> aggiornaSaldoDisplay());
-        
+
         pulsantiBox.getChildren().addAll(ricaricaButton, aggiornaButton);
-        
+
         contoSection.getChildren().addAll(titoloConto, saldoBox, pulsantiBox);
-        
+
         return contoSection;
-    }
-    
-    /**
-     * Crea la sezione per il toggle tema chiaro/scuro
-     */
-    private HBox createThemeBox() {
-        HBox themeBox = new HBox(10);
-        themeBox.setAlignment(Pos.CENTER);
-        themeBox.setPadding(new Insets(20, 0, 10, 0));
-        
-        Label themeLabel = new Label("Tema:");
-        themeLabel.setStyle("-fx-font-weight: bold;");
-        
-        ToggleButton themeToggle = new ToggleButton();
-        themeToggle.setPrefSize(60, 30);
-        themeToggle.setStyle("-fx-background-radius: 15; -fx-background-color: #cccccc;");
-        
-        // Cerchio interno del toggle
-        Circle toggleCircle = new Circle(12);
-        toggleCircle.setTranslateX(-10);
-        toggleCircle.setFill(javafx.scene.paint.Color.WHITE);
-        toggleCircle.setStroke(javafx.scene.paint.Color.LIGHTGRAY);
-        
-        // StackPane per contenere il cerchio
-        StackPane toggleContainer = new StackPane();
-        toggleContainer.getChildren().addAll(themeToggle, toggleCircle);
-        
-        // Gestione del cambio tema
-        themeToggle.selectedProperty().addListener((observable, oldValue, newValue) -> {
-            darkMode = newValue;
-            applyTheme();
-            
-            // Animazione del cerchio
-            if (newValue) {
-                toggleCircle.setTranslateX(10);
-                themeToggle.setStyle("-fx-background-radius: 15; -fx-background-color: #2e7d32;");
-            } else {
-                toggleCircle.setTranslateX(-10);
-                themeToggle.setStyle("-fx-background-radius: 15; -fx-background-color: #cccccc;");
-            }
-        });
-        
-        themeBox.getChildren().addAll(themeLabel, toggleContainer);
-        return themeBox;
     }
     
     /**
@@ -845,47 +1219,7 @@ public class AccountDialog extends Dialog<Void> {
         logoutButton.setMaxWidth(Double.MAX_VALUE);
         return logoutButton;
     }
-    
-    // ========== GESTIONE TEMA ==========
-    
-    /**
-     * Applica il tema chiaro/scuro al dialogo
-     */
-    private void applyTheme() {
-        String backgroundColor = darkMode ? "#2d2d2d" : "white";
-        String textColor = darkMode ? "white" : "black";
-        
-        // Applica il tema allo ScrollPane e al contenuto
-        scrollPane.setStyle("-fx-background: " + backgroundColor + "; -fx-background-color: " + backgroundColor + ";");
-        
-        // Trova il VBox principale dentro lo ScrollPane
-        if (scrollPane.getContent() instanceof VBox) {
-            VBox mainContent = (VBox) scrollPane.getContent();
-            mainContent.setStyle("-fx-background-color: " + backgroundColor + ";");
-            
-            // Applica il tema a tutti i nodi figli
-            applyThemeToNode(mainContent, textColor);
-        }
-        
-        getDialogPane().setStyle("-fx-background-color: " + backgroundColor + ";");
-    }
-    
-    /**
-     * Applica il tema ricorsivamente a tutti i nodi
-     */
-    private void applyThemeToNode(javafx.scene.Node node, String textColor) {
-        if (node instanceof Label) {
-            ((Label) node).setStyle("-fx-text-fill: " + textColor + ";");
-        } else if (node instanceof VBox || node instanceof HBox || node instanceof GridPane) {
-            // Se è un container, applica il tema a tutti i figli
-            if (node instanceof Pane) {
-                for (javafx.scene.Node child : ((Pane) node).getChildren()) {
-                    applyThemeToNode(child, textColor);
-                }
-            }
-        }
-    }
-    
+     
     // ========== UTILITY METHODS ==========
     
     /**
