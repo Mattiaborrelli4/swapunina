@@ -307,8 +307,6 @@ public class ProductGrid {
         this.onAnnuncioModificato = onAnnuncioModificato;
     }
 
-    // === METODI UTILITY ===
-
     /**
      * Restituisce il numero di card attualmente visualizzate
      * @return Numero di card nella griglia
@@ -354,4 +352,42 @@ public class ProductGrid {
             "-fx-opacity: 0.8;";
         productGrid.setStyle(style);
     }
+
+    // In ProductGrid.java - AGGIUNGI questo metodo alla classe
+
+/**
+ * Rimuove una card specifica dalla griglia in base all'ID annuncio
+ * @param annuncioId ID dell'annuncio da rimuovere
+ */
+public void rimuoviCard(int annuncioId) {
+    Platform.runLater(() -> {
+        int initialSize = productGrid.getChildren().size();
+        
+        // Itera tutte le card e rimuovi quella con l'ID corrispondente
+        productGrid.getChildren().removeIf(node -> {
+            if (node instanceof ProductCard) {
+                ProductCard card = (ProductCard) node;
+                boolean shouldRemove = (card.getAnnuncioId() == annuncioId);
+                if (shouldRemove) {
+                    System.out.println("✅ Rimuovendo card annuncio " + annuncioId + " dalla griglia");
+                }
+                return shouldRemove;
+            }
+            return false;
+        });
+
+        int finalSize = productGrid.getChildren().size();
+        
+        // Se è stata rimossa una card e non ci sono più card, mostra lo stato vuoto
+        if (finalSize < initialSize) {
+            System.out.println("✅ Card rimossa con successo. Card rimanenti: " + finalSize);
+            
+            if (finalSize == 0) {
+                mostraStatoVuoto();
+            }
+        } else {
+            System.out.println("⚠️  Nessuna card trovata con ID: " + annuncioId);
+        }
+    });
+}
 }
