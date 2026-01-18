@@ -2,35 +2,43 @@ package application.Classe;
 
 import java.time.LocalDateTime;
 
-/**
- * Classe che rappresenta un codice di conferma criptato
- */
 public class Codice {
     private int id;
     private int utenteId;
     private int annuncioId;
     private String codiceHash;
+    private String codicePlain; // Nuovo campo
     private LocalDateTime dataCreazione;
     private int tentativiErrati;
 
-    // Costruttore per nuovo codice
-    public Codice(int utenteId, int annuncioId, String codiceHash) {
-        this.utenteId = utenteId;
-        this.annuncioId = annuncioId;
-        this.codiceHash = codiceHash;
-        this.dataCreazione = LocalDateTime.now();
-        this.tentativiErrati = 0;
-    }
-
-    // Costruttore per caricamento da DB
-    public Codice(int id, int utenteId, int annuncioId, String codiceHash, 
-                 LocalDateTime dataCreazione, int tentativiErrati) {
+    // Costruttore esistente (mantenuto per compatibilità)
+    public Codice(int id, int utenteId, int annuncioId, String codiceHash, LocalDateTime dataCreazione, int tentativiErrati) {
         this.id = id;
         this.utenteId = utenteId;
         this.annuncioId = annuncioId;
         this.codiceHash = codiceHash;
         this.dataCreazione = dataCreazione;
         this.tentativiErrati = tentativiErrati;
+    }
+
+    // NUOVO costruttore con codicePlain
+    public Codice(int id, int utenteId, int annuncioId, String codiceHash, String codicePlain, LocalDateTime dataCreazione, int tentativiErrati) {
+        this.id = id;
+        this.utenteId = utenteId;
+        this.annuncioId = annuncioId;
+        this.codiceHash = codiceHash;
+        this.codicePlain = codicePlain;
+        this.dataCreazione = dataCreazione;
+        this.tentativiErrati = tentativiErrati;
+    }
+
+    // Costruttore semplificato (se esiste)
+    public Codice(int utenteId, int annuncioId, String codiceHash) {
+        this.utenteId = utenteId;
+        this.annuncioId = annuncioId;
+        this.codiceHash = codiceHash;
+        this.dataCreazione = LocalDateTime.now();
+        this.tentativiErrati = 0;
     }
 
     // Getters e Setters
@@ -46,6 +54,9 @@ public class Codice {
     public String getCodiceHash() { return codiceHash; }
     public void setCodiceHash(String codiceHash) { this.codiceHash = codiceHash; }
 
+    public String getCodicePlain() { return codicePlain; }
+    public void setCodicePlain(String codicePlain) { this.codicePlain = codicePlain; }
+
     public LocalDateTime getDataCreazione() { return dataCreazione; }
     public void setDataCreazione(LocalDateTime dataCreazione) { this.dataCreazione = dataCreazione; }
 
@@ -53,34 +64,12 @@ public class Codice {
     public void setTentativiErrati(int tentativiErrati) { this.tentativiErrati = tentativiErrati; }
 
     /**
-     * Verifica se il codice è scaduto (24 ore)
-     */
-    public boolean isScaduto() {
-        return dataCreazione.plusHours(24).isBefore(LocalDateTime.now());
-    }
-
-    /**
      * Verifica se il codice è ancora valido
+     * - Non scaduto (entro 14 giorni)
+     * - Meno di 3 tentativi errati
      */
     public boolean isValido() {
-        return !isScaduto() && tentativiErrati < 5; // Massimo 5 tentativi errati
-    }
-
-    /**
-     * Incrementa i tentativi errati
-     */
-    public void incrementaTentativiErrati() {
-        this.tentativiErrati++;
-    }
-
-    @Override
-    public String toString() {
-        return "Codice{" +
-                "id=" + id +
-                ", utenteId=" + utenteId +
-                ", annuncioId=" + annuncioId +
-                ", dataCreazione=" + dataCreazione +
-                ", tentativiErrati=" + tentativiErrati +
-                '}';
+        return tentativiErrati > 3 && 
+               dataCreazione.isAfter(LocalDateTime.now().minusDays(14));
     }
 }
