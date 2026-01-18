@@ -51,10 +51,12 @@ public class AnnuncioDAO {
         String tipologiaDB = annuncio.getTipologia().name();
 
         try (Connection conn = ConnessioneDB.getConnessione()) {
+            //inizio transizione
             conn.setAutoCommit(false);
             try {
                 // Prova ad inserire annuncio
                 int id = inserisciAnnuncio(conn, annuncio, oggettoId, tipologiaDB);
+                //salva tutto insieme
                 conn.commit();
                 return id;
             } catch (SQLException e) {
@@ -71,6 +73,7 @@ public class AnnuncioDAO {
                     conn.commit();
                     return id;
                 } else {
+                    // Se uno dei due fallisce, annulla tutto
                     conn.rollback();
                     throw e; // rilancia l'eccezione se non è errore tipologia
                 }
@@ -83,17 +86,18 @@ public class AnnuncioDAO {
     // Inserisce un annuncio nel database
     private int inserisciAnnuncio(Connection conn, Annuncio annuncio, int oggettoId, String tipologiaDB) throws SQLException {
         String sql = "INSERT INTO annuncio (titolo, oggetto_id, prezzo, in_evidenza, tipologia, modalita_consegna, stato, venditore_id, data_pubblicazione, image_url, descrizione) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
+        //il RETURNING id viene messo alla fine per evitare conflitti tra utenti diversi     
+        //È il modo più veloce e sicuro per ottenere l'ID appena generato  
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
 
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            // ✅ CORREZIONE CRUCIALE: Imposta il titolo dall'oggetto Annuncio
             String titolo = annuncio.getTitolo();
             if (titolo == null || titolo.trim().isEmpty()) {
                 // Fallback: usa il nome dell'oggetto se il titolo è vuoto
                 titolo = annuncio.getOggetto() != null ? annuncio.getOggetto().getNome() : "Senza titolo";
             }
             
-            stmt.setString(1, titolo); // ✅ Titolo dalla tabella annuncio
+            stmt.setString(1, titolo);
             stmt.setInt(2, oggettoId);
             stmt.setDouble(3, annuncio.getPrezzo());
             stmt.setBoolean(4, annuncio.isInEvidenza());
@@ -124,8 +128,8 @@ public class AnnuncioDAO {
                     int annuncioId = rs.getInt("id");
                     inserisciCaratteristiche(conn, annuncioId, annuncio.getCaratteristicheSpeciali());
                     
-                    // ✅ DEBUG: Verifica che il titolo sia stato salvato
-                    System.out.println("✅ Annuncio salvato nel database:");
+                    // DEBUG: Verifica che il titolo sia stato salvato
+                    System.out.println("Annuncio salvato nel database:");
                     System.out.println("   ID: " + annuncioId);
                     System.out.println("   Titolo: '" + titolo + "'");
                     System.out.println("   Oggetto ID: " + oggettoId);
@@ -146,15 +150,17 @@ public class AnnuncioDAO {
             for (String caratteristica : caratteristiche) {
                 stmt.setInt(1, annuncioId);
                 stmt.setString(2, caratteristica);
+                // in questo cosa che ci sono tante righe non cambia tanto ma nel caso ci fossero molte righe
+                // conviene fare il batch, quindi lo aggiungiamo  ad una lista
                 stmt.addBatch();
             }
+            //e con questo comando invio tutto al db in un colpo solo
             stmt.executeBatch();
         }
     }
 
     // Recupera un annuncio dal database tramite ID
     public Annuncio getAnnuncioById(int id) {
-        // ✅ QUERY CORRETTA - usa o.categoria_id invece di o.categoria
         String sql = "SELECT " +
                    "a.id AS annuncio_id, a.titolo, a.prezzo, a.in_evidenza, a.tipologia, " +
                    "a.modalita_consegna, a.stato, a.venditore_id, a.data_pubblicazione, " +
@@ -210,7 +216,7 @@ public List<Annuncio> getAnnunciAttivi() {
     String sql = "SELECT a.id AS annuncio_id, a.titolo, u.nome AS nome_venditore " +
                  "FROM annuncio a " +
                  "JOIN utente u ON a.venditore_id = u.id " +
-                 "WHERE a.stato = 'ATTIVO'"; // ✅ Solo annunci ATTIVI (non CONSEGNATI)
+                 "WHERE a.stato = 'ATTIVO'";
 
     try (Connection conn = ConnessioneDB.getConnessione();
          PreparedStatement stmt = conn.prepareStatement(sql);
@@ -240,7 +246,7 @@ public List<Annuncio> getAnnunciAttivi() {
             int rowsAffected = stmt.executeUpdate();
             
             if (rowsAffected > 0) {
-                System.out.println("✅ Stato annuncio " + annuncioId + " aggiornato a: " + nuovoStato);
+                System.out.println("Stato annuncio " + annuncioId + " aggiornato a: " + nuovoStato);
                 return true;
             }
             return false;
@@ -291,6 +297,7 @@ public List<Annuncio> getAnnunciAttivi() {
     }
     
     // CORREZIONE COMPLETA: Metodo helper per mappare ResultSet ad Annuncio
+    //nel caso venga cambiato il nome di una colonna nel db, basta cambiarlo qui
     private Annuncio mapResultSetToAnnuncio(ResultSet rs) throws SQLException {
         try {
             // Recupera i dati base dell'annuncio
@@ -418,12 +425,11 @@ public List<Annuncio> getAnnunciAttivi() {
                     return false;
                 }
 
-                // 2. Aggiorna l'annuncio - ✅ ASSICURATI DI AGGIORNARE ANCHE IL TITOLO
+                // Aggiorna l'annuncio
                 String sql = "UPDATE annuncio SET titolo = ?, prezzo = ?, in_evidenza = ?, tipologia = ?, " +
                              "modalita_consegna = ?, stato = ?, image_url = ?, descrizione = ? WHERE id = ?";
                 
                 try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                    // ✅ IMPORTANTE: Aggiorna anche il titolo
                     stmt.setString(1, annuncio.getTitolo());
                     stmt.setDouble(2, annuncio.getPrezzo());
                     stmt.setBoolean(3, annuncio.isInEvidenza());
@@ -740,10 +746,7 @@ public boolean verificaCodiceEEliminaAnnuncio(int annuncioId, String codice) {
     }
 }
 
-/**
- * Elimina definitivamente un annuncio dal database (inclusi acquisti correlati)
- */
-// ✅ MANTIENI QUESTO METODO (il primo che appare)
+
 /**
  * Elimina definitivamente un annuncio dal database (inclusi acquisti correlati)
  */
